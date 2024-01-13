@@ -1,0 +1,41 @@
+---
+title: "energy stress genes"
+author: "YinCY"
+format: html
+editor: source
+---
+
+
+**Data from Heping**
+
+```{r}
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(xlsx)
+library(stringr)
+```
+
+
+```{r}
+diff <- read.xlsx(file = "/home/yincy/git/data/zhuyi/tumor/Diff_Huh7_1h_GD.xlsx", 
+                  sheetIndex = 1, 
+                  startRow = 2)
+diff %>% arrange(padj)
+
+top15_up <- diff %>% filter(Disease == "Up") %>% arrange(pvalue) %>% top_n(15, wt = desc(pvalue)) %>% pull(tags)
+str_view(top15_up, ".[0-9]{1,}_[A-Za-z0-9]{1,}$", html = TRUE)
+top15_up <- str_replace(top15_up, ".[0-9]{1,}_[A-Za-z0-9]{1,}$", "")
+
+saveRDS(top15_up, "/home/yincy/git/data/zhuyi/tumor/top15_up_genes.rds")
+```
+
+
+
+
+
+
+
+
+

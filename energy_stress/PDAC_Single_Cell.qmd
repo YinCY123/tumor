@@ -1,0 +1,404 @@
+---
+title: "PDAC Single Cell"
+author: "YinCY"
+format: html
+editor: source
+---
+
+# PDAC
+### GSE155698
+```{r}
+#| message: false
+library(SingleCellExperiment)
+library(fs)
+library(DropletUtils)
+library(magrittr)
+
+samples <- dir_ls("pdac/GSE155698/", regexp = "_TISSUE_")
+for(i in samples) {untar(tarfile = i, exdir = "pdac/GSE155698/files/")}
+sample_dirs <- dir_ls("pdac/GSE155698/files/", recurse = TRUE, regexp = "TISSUE_14", invert = T)
+fs::file_delete(grep("h5$", sample_dirs, value = T))
+sample_dirs <- dir_ls("pdac/GSE155698/files/", recurse = TRUE, regexp = "TISSUE_14", invert = T)
+sample_dirs <- sample_dirs[seq(2, length(sample_dirs), 5)]
+sample_names <- strsplit(sample_dirs, split = "/") %>% sapply(., "[[", 4) %>% unname()
+
+# not all rowdata in the same format
+sce_list <- vector(mode = "list")
+for(i in seq_along(sample_names)){
+  sce_list[sample_names[i]] <- read10xCounts(samples = sample_dirs[i], 
+                                             sample.names = sample_names[i], 
+                                             col.names = TRUE)
+}
+
+sce_list %>% length
+sce_list %>% names
+
+rdata <- vector(mode = "list")
+for(i in seq_along(sample_names)){
+  rdata[sample_names[i]] <- rowData(sce_list[[i]])
+}
+
+rdata %>% sapply(., ncol) %>% table
+rdata %>% sapply(., ncol) %>% which.min
+sce_list[[8]] %>% rowData()
+
+for(i in seq_along(sce_list)){rowData(sce_list[[i]]) <- rowData(sce_list[[i]])[, 1:2]}
+
+source("/home/yincy/git/mouse-kidney/functions/harmoniseSCE.R")
+sce_list <- harmonizeSCE(sce_list, method = "fastMNN")
+
+Reduce(intersect, lapply(sce_list, rownames)) %>% length
+
+sces <- Reduce(combineCols, sce_list)
+sces %>% rowData()
+sces %>% colData
+sces$Sample %>% table %>% head
+colData(sces)
+saveRDS(sces, "pdac/GSE155698.rds")
+```
+
+### GSE156405
+```{r}
+untar("pdac/GSE156405/GSE156405_RAW.tar", exdir = "pdac/GSE156405/files/")
+files <- dir_ls("pdac/GSE156405/files/", regexp = ".tar.gz$")
+for(i in seq_along(files)){untar(tarfile = files[i], exdir = "pdac/GSE156405/files/")}
+
+samples <- dir_ls("pdac/GSE156405/files/", type = "directory")
+sample_names <- strsplit(samples, split = "/") %>% sapply(., "[[", 4) %>% unname() %>% substr(., 1, 2)
+
+sces <- read10xCounts(samples = samples, 
+                      sample.names = sample_names, 
+                      col.names = TRUE)
+sces
+sces %>% rowData()
+sces %>% colData()
+saveRDS(sces, "pdac/GSE156405.rds")
+```
+
+
+### GSE205013
+```{r}
+library(R.utils)
+library(stringr)
+untar("pdac/GSE205013/GSE205013_RAW.tar", exdir = "pdac/GSE205013/files/")
+files <- dir_ls("pdac/GSE205013/files/", recurse = F, type = "file")
+
+# create directories
+base_name <- dirname(files) %>% unique
+file_dir_names <- paste0(base_name, c(paste0("/P0", 1:9), paste0("/P", 10:27)))
+dir_create(path = file_dir_names)
+
+# move files into corresponding directories
+file_names <- basename(files)
+new_paths <- paste(rep(file_dir_names, each = 3), file_names, sep = "/")
+file_move(path = files, new_path = new_paths)
+
+# rename file names
+all_files <- dir_ls("pdac/GSE205013/files/", type = "file", recurse = T)
+base_dirs <- dirname(all_files)
+new_file_names <- str_extract(basename(all_files), pattern = "barcodes.tsv.gz|features.tsv.gz|matrix.mtx.gz")
+new_dirs <- paste(base_dirs, new_file_names, sep = "/")
+fs::file_move(all_files, new_dirs)
+
+# read samples into SingleCellExperiment object
+samples <- dir_ls("pdac/GSE205013/files/", type = "directory")
+sample_names <- basename(samples)
+
+sces <- read10xCounts(samples = samples, 
+                      sample.names = sample_names, 
+                      col.names = TRUE)
+sces
+sces %>% rowData()
+sces %>% colData()
+sces %>% colnames() %>% str
+saveRDS(sces, "pdac/GSE205013.rds")
+```
+
+
+# analysis
+```{r}
+#| message: false
+#| warning: false
+
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(bluster)
+library(magrittr)
+library(batchelor)
+```
+
+```{r}
+sces <- readRDS("../../data/zhuyi/tumor/pdac/GSE205013.rds")
+sces
+sces %>% colData
+rowData(sces)$Type <- NULL
+sces %>% rowData
+```
+
+```{r}
+# qc
+# cell
+is_mito <- grepl("^MT-", rowData(sces)$Symbol, ignore.case = F)
+is_mito %>% table
+rowData(sces)$Symbol[is_mito]
+
+stats <- perCellQCMetrics(sces, subsets = list(mito = is_mito))
+qc_sum <- isOutlier(stats$sum, type = "both", log = T, batch = sces$Sample)
+qc_sum %>% table
+
+qc_detected <- isOutlier(stats$detected, log = T, type = "lower", batch = sces$Sample)
+qc_detected %>% table
+
+qc_mito <- isOutlier(stats$subsets_mito_percent, log = T, type = "both", batch = sces$Sample)
+qc_mito %>% table
+
+qc <- qc_sum | qc_detected | qc_mito
+qc %>% table
+sces <- sces[, !qc]
+
+# feature
+stats <- perFeatureQCMetrics(sces)
+qc <- stats$detected > 0.05
+qc %>% table
+sces <- sces[qc, ]
+sces
+
+# sample fraction of the cells
+set.seed(101)
+sces <- sces[, sample(ncol(sces), round(ncol(sces) * 0.3, 0))]
+
+rm(stats, is_mito, qc_sum, qc_detected, qc_mito, qc);gc()
+```
+
+```{r}
+set.seed(101)
+qclusters <- quickCluster(sces, 
+                          method = "igraph", 
+                          use.rank = TRUE, 
+                          block = sces$Sample, 
+                          BPPARAM = BiocParallel::MulticoreParam(10))
+qclusters %>% table
+
+sces <- computePooledFactors(x = sces, clusters = qclusters)
+sces <- multiBatchNorm(sces, batch = sces$Sample, BPPARAM = BiocParallel::MulticoreParam(10))
+dec <- modelGeneVar(sces, block = sces$Sample)
+dec[order(dec$bio, decreasing = TRUE), ]
+hvgs <- getTopHVGs(dec, var.threshold = 0)
+hvgs %>% str
+```
+
+```{r}
+set.seed(101)
+cur <- sces
+cur <- fastMNN(cur, 
+               batch = cur$Sample, 
+               k = 25, 
+               auto.merge = TRUE, 
+               subset.row = hvgs, 
+               correct.all = TRUE, 
+               BPPARAM = BiocParallel::MulticoreParam(10))
+
+reducedDim(sces, "corrected") <- reducedDim(cur, "corrected")
+assay(sces, "reconstructed") <- assay(cur, "reconstructed")
+rm(cur, qclusters, dec, hvgs); gc()
+```
+
+```{r}
+set.seed(101)
+sces <- runTSNE(sces, 
+                dimred = "corrected", 
+                num_threads = 14)
+saveRDS(sces, "/home/yincy/git/data/zhuyi/tumor/res/pdac/preprocessed_GSE205013.rds")
+
+
+set.seed(101)
+clusters <- clusterRows(reducedDim(sces, "corrected"), 
+                        BLUSPARAM = NNGraphParam(BPPARAM = BiocParallel::MulticoreParam(10)))
+clusters %>% table
+colData(sces)$clusters <- factor(clusters)
+saveRDS(sces, "/home/yincy/git/data/zhuyi/tumor/res/pdac/preprocessed_GSE205013.rds")
+```
+
+# reference
+```{r}
+library(data.table)
+library(EnsDb.Hsapiens.v86)
+library(magrittr)
+
+meta_info <- read.table("/home/yincy/git/data/zhuyi/tumor/pdac/ref/complete_MetaData_70170cells_scp.csv", 
+                        sep = ",", 
+                        header = TRUE)
+meta_info <- meta_info[-1, ]
+# only retain biopsy
+meta_info <- meta_info %>% dplyr::filter(sample.type == "Biopsy")
+rownames(meta_info) <- meta_info$NAME
+
+
+mtx <- fread("/home/yincy/git/data/zhuyi/tumor/pdac/ref/Biopsy_RawDGE_23042cells.csv", 
+              sep = ",", 
+              header = TRUE) %>% 
+  as.data.frame()
+
+mtx <- mtx %>% tibble::column_to_rownames("V1")
+mtx <- mtx[, (colnames(mtx) %in% meta_info$NAME)]
+mtx %>% dim
+mtx[1:10, 1:10]
+
+meta_info <- meta_info %>% dplyr::filter(NAME %in% colnames(mtx))
+
+gene_info <- data.frame(symbol = rownames(mtx), 
+                        ensembl = mapIds(EnsDb.Hsapiens.v86, keys = rownames(mtx), keytype = "SYMBOL", column = "GENEID"), 
+                        row.names = rownames(mtx))
+gene_info
+```
+
+```{r}
+sces_ref <- SingleCellExperiment(assays = list(counts = as(as.matrix(mtx), "CsparseMatrix")), 
+                                 rowData = gene_info, 
+                                 colData = meta_info)
+sces_ref
+sces_ref %>% colData()
+sces_ref$donor_ID %>% table
+```
+
+```{r}
+is_mito <- grepl("^MT-", rowData(sces_ref)$symbol)
+is_mito %>% table
+
+stats <- perCellQCMetrics(sces_ref, subsets = list(mito = is_mito))
+qc_sum <- isOutlier(stats$sum, log = TRUE, type = "both", batch = sces_ref$biosample_id)
+qc_sum %>% table
+
+qc_detected <- isOutlier(stats$detected, log = T, type = "lower", batch = sces_ref$biosample_id)
+qc_detected %>% table
+
+qc_mito <- isOutlier(stats$subsets_mito_percent, log = T, type = "higher", batch = sces_ref$biosample_id)
+qc_mito %>% table
+
+qc <- qc_sum | qc_detected | qc_mito
+qc %>% table
+
+sces_ref <- sces_ref[, !qc]
+
+stats <- perFeatureQCMetrics(sces_ref)
+qc <- stats$detected > 0.05
+qc %>% table
+
+sces_ref <- sces_ref[qc, ]
+```
+
+```{r}
+qclusters <- quickCluster(sces_ref, 
+                          use.rank = T, 
+                          method = "igraph")
+qclusters %>% table
+
+sces_ref <- computePooledFactors(sces_ref, clusters = qclusters)
+sces_ref <- multiBatchNorm(sces_ref, batch = sces_ref$biosample_id)
+dec <- modelGeneVar(sces_ref, block = sces_ref$biosample_id)
+hvgs <- getTopHVGs(dec, var.threshold = 0)
+hvgs %>% str
+```
+
+```{r}
+set.seed(101)
+cur <- sces_ref
+cur <- fastMNN(cur, 
+               batch = cur$biosample_id, 
+               auto.merge = TRUE, 
+               subset.row = hvgs, 
+               correct.all = TRUE, 
+               BPPARAM = BiocParallel::MulticoreParam(12))
+reducedDim(sces_ref, "corrected") <- reducedDim(cur, "corrected")
+assay(sces_ref, "reconstructed") <- assay(cur, "reconstructed")
+
+rm(cur, dec, hvgs, qclusters, mtx, meta_info, gene_info, stats, qc, qc_detected, qc_mito, qc_sum, is_mito); gc()
+
+saveRDS(sces_ref, "/home/yincy/git/data/zhuyi/tumor/pdac/ref/pdac_ref.rds")
+```
+
+```{r}
+# clusters <- clusterRows(x = reducedDim(sces_ref, "corrected"), 
+#                         BLUSPARAM = NNGraphParam(k = 20, BPPARAM = BiocParallel::MulticoreParam(12)))
+# clusters %>% table
+# colData(sces_ref)$clusters <- factor(clusters)
+```
+
+```{r}
+library(SingleR)
+sces <- readRDS("/home/yincy/git/data/zhuyi/tumor/res/preprocessed_GSE205013.rds")
+sces_ref <- sces_ref[!is.na(rowData(sces_ref)$ensembl), ]
+rownames(sces_ref) <- rowData(sces_ref)$ensembl
+
+pred_label <- SingleR(test = sces, 
+                      ref = sces_ref,
+                      labels = sces_ref$Coarse_Cell_Annotations, 
+                      clusters = sces$clusters)
+
+pred_label$pruned.labels %>% table(useNA = "ifany")
+```
+
+```{r}
+cell_types <- setNames(pred_label$pruned.labels, rownames(pred_label))
+
+colData(sces)$cell_type <- cell_types[sces$clusters]
+colData(sces)
+saveRDS(sces, "/home/yincy/git/data/zhuyi/tumor/res/pdac/processed_GSE205013.rds")
+```
+
+```{r}
+signature_genes <- readRDS("/home/yincy/git/data/zhuyi/tumor/top15_up_genes.rds")
+sig_df <- data.frame(ensembl = signature_genes, 
+                     symbol = mapIds(EnsDb.Hsapiens.v86, keys = signature_genes, keytype = "GENEID", column = "SYMBOL"), 
+                     in_PDAC = (signature_genes %in% rownames(sces)))
+sig_df
+```
+
+```{r}
+df <- makePerCellDF(sces, 
+                    features = signature_genes, 
+                    use.dimred = F, 
+                    use.altexps = F) %>% 
+  rownames_to_column("barcodes")
+df <- df %>% dplyr::select(-starts_with("corrected"))
+
+df <- df %>% pivot_longer(cols = starts_with("ENSG"), 
+                    names_to = "ensembl", 
+                    values_to = "logcounts")
+
+df <- df %>% 
+  group_by(barcodes, cell_type) %>% 
+  summarise(sum = sum(logcounts), 
+            q75 = quantile(logcounts, probs = 0.75))
+
+m <- setNames(df$sum, df$barcodes)
+q75 <- setNames(df$q75, df$barcodes)
+
+
+colData(sces)$sum <- m[rownames(colData(sces))]
+colData(sces)$q75 <- q75[rownames(colData(sces))]
+sces %>% colData
+
+cords <- reducedDim(sces, "TSNE") %>% as.data.frame() %>% rownames_to_column("barcodes")
+coldata <- colData(sces) %>% as.data.frame() %>% rownames_to_column("barcodes")
+
+df_to_plot <- left_join(coldata, cords, by = "barcodes")
+```
+
+```{r}
+cell_location <- df_to_plot %>% group_by(cell_type) %>% summarise(x = mean(TSNE1), y = mean(TSNE2))
+
+df_to_plot %>% 
+  ggplot(aes(TSNE1, TSNE2)) +
+  geom_point(aes(color = cell_type), size = 1, stroke = 0.1) +
+  # geom_density_2d(linewidth = 0.2) +
+  geom_text(aes(x, y, label = cell_type), data = cell_location, size = 2.5, color = "red") +
+  viridis::scale_color_viridis("cell types", discrete = T, option = "D") +
+  theme_classic()
+
+ggsave("/home/yincy/git/data/zhuyi/tumor/res/pdac/PDAC_cell_types.png", width = 9)
+```
+
+
+

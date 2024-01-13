@@ -1,0 +1,112 @@
+---
+title: "BRCA Single Cell"
+author: "YinCY"
+format: html
+editor: source
+---
+
+# BRCA
+```{r}
+#| message: false
+
+library(SingleCellExperiment)
+library(fs)
+library(magrittr)
+library(stringr)
+library(stringr.plus)
+library(purrr)
+library(EnsDb.Hsapiens.v86)
+library(DropletUtils)
+```
+
+### GSE114724
+```{r}
+
+```
+
+### GSE148673
+```{r}
+dir_create("/home/yincy/git/data/zhuyi/tumor/brca/GSE148673/samples")
+untar("/home/yincy/git/data/zhuyi/tumor/brca/GSE148673/GSE148673_RAW.tar", 
+      exdir = "/home/yincy/git/data/zhuyi/tumor/brca/GSE148673/samples/")
+samples <- dir_ls("/home/yincy/git/data/zhuyi/tumor/brca/GSE148673/samples/", regexp = "TNBC")
+
+sample_counts_list <- vector(mode = "list")
+for(i in seq_along(samples)){sample_counts_list[[basename(samples)[i]]] <- read.table(samples[i], sep = "\t", header = TRUE)}
+prefix <- str_extract(names(sample_counts_list), "TNBC[12345]")
+
+for(i in seq_along(prefix)){
+  colnames(sample_counts_list[[i]]) <- paste(prefix[i], colnames(sample_counts_list[[i]]), sep = "_")
+  sample_counts_list[[i]] <- sample_counts_list[[i]][-c(1,2), ]
+  sample_counts_list[[i]] <- tibble::rownames_to_column(sample_counts_list[[i]], "symbol")
+}
+
+df <- Reduce(dplyr::left_join, sample_counts_list)
+df$ensembl <- mapIds(EnsDb.Hsapiens.v86, 
+                     keys = df$symbol, 
+                     keytype = "SYMBOL", 
+                     column = "GENEID")
+df <- df %>% dplyr::relocate(ensembl, .before = "symbol")
+df <- df %>% dplyr::filter(!is.na(ensembl))
+df$ensembl %>% duplicated() %>% table
+df <- df %>% tibble::column_to_rownames("ensembl") %>% dplyr::select(-symbol)
+```
+
+```{r}
+gene_info <- data.frame(ensembl = rownames(df), 
+                        symbol = mapIds(EnsDb.Hsapiens.v86, keys = rownames(df), keytype = "GENEID", column = "SYMBOL"))
+gene_info
+```
+
+```{r}
+df <- type.convert(df)
+df <- as.matrix(df)
+```
+
+```{r}
+cell_info <- data.frame(barcodes = colnames(df), 
+                        row.names = colnames(df))
+cell_info
+```
+
+```{r}
+GSE148673 <- SingleCellExperiment(assays = list(counts = as(df, "CsparseMatrix")), 
+                                  rowData = gene_info, 
+                                  colData = cell_info)
+
+GSE148673
+GSE148673 %>% colData
+GSE148673 %>% rowData
+saveRDS(GSE148673, "/home/yincy/git/data/zhuyi/tumor/brca/GSE148673.rds")
+```
+
+# GSE176078
+```{r}
+untar("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/GSE176078_RAW.tar", 
+      exdir = "/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/")
+
+tar_files <- dir_ls("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/", regexp = ".tar.gz$")
+for(file in tar_files){
+  untar(file, exdir = "/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/")
+}
+
+# rename
+files <- dir_ls("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/", recurse = T, type = "file", regexp = "count_matrix")
+new_files <- str_replace(files, "count_matrix_", "")
+new_files <- str_replace(new_files, "sparse", "matrix")
+file_move(files, new_files)
+
+samples <- dir_ls("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/", type = "directory")
+sample_names <- basename(samples)
+
+GSE176078 <- read10xCounts(samples = samples, 
+                           sample.names = sample_names, 
+                           col.names = TRUE)
+
+GSE176078 %>% colData
+GSE176078 %>% rowData
+saveRDS(GSE176078, "/home/yincy/git/data/zhuyi/tumor/brca/GSE176078.rds")
+```
+
+
+
