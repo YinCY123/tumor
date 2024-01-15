@@ -1,0 +1,213 @@
+---
+title: "LIHC"
+author: "YinCY"
+format: html
+---
+
+
+```{r}
+#|warning: false
+#|mmessage: false
+library(TCGAbiolinks)
+```
+
+# query
+```{r}
+GDCquery(project = "TCGA-LIHC", 
+         data.category = "Transcriptome Profiling", 
+         data.type = "Gene Expression Quantification", 
+         experimental.strategy = "RNA-Seq", 
+         sample.type = "Primary Tumor", 
+         workflow.type = "STAR - Counts", 
+         access = "open")
+LIHC_query <- .Last.value
+saveRDS(LIHC_query, "LIHC_query.rds")
+```
+
+
+
+# download
+```{r}
+GDCdownload(query = LIHC_query, 
+            method = "api", 
+            files.per.chunk = 10, 
+            directory = "../data/Tumor/TCGA-LIHC/")
+```
+
+
+
+# prepare
+```{r}
+library(SummarizedExperiment)
+library(magrittr)
+LIHC_query <- readRDS("LIHC_query.rds")
+lihc <- GDCprepare(query = LIHC_query, 
+                   directory = "../data/Tumor/TCGA-LIHC/")
+saveRDS(lihc, "lihc.rds")
+
+counts <- assay(lihc, "unstranded")
+counts %>% dim
+
+gene_info <- rowData(lihc) %>% as.data.frame()
+gene_info
+```
+
+```{r}
+lihc %>% dim
+lihc %>% rowData
+sample_info <- lihc %>% colData  %>% .[, c("barcode", "ajcc_pathologic_stage")] %>% as.data.frame()
+stages <- lihc %>% colData %>% .$ajcc_pathologic_stage %>% unique
+stages
+
+
+sample_info <- transform(sample_info, 
+                         Stage = sapply(X = sample_info$ajcc_pathologic_stage, 
+                                        FUN = function(x){
+                                            switch(as.character(x), 
+                                                   "Stage I" = "Stage I", 
+                                                   "Stage II" = "Stage II", 
+                                                   "Stage III" = "Stage III", 
+                                                   "Stage IIIA" = "Stage III", 
+                                                   "Stage IIIB" = "Stage III", 
+                                                   "Stage IIIC" = "Stage III", 
+                                                   "Stage IV" = "Stage IV", 
+                                                   "Stage IVA" = "Stage IV", 
+                                                   "Stage IVB" = "Stage IV", 
+                                                   "NA" = "NA")
+                                        }))
+
+sample_info
+```
+
+
+# analysis
+```{r}
+library(edgeR)
+library(limma)
+library(tidyverse)
+library(biomaRt)
+
+identical(colnames(counts), rownames(sample_info))
+identical(rownames(counts), rownames(gene_info))
+
+# filter samples
+samples_to_remove <- sample_info %>% dplyr::filter(Stage == "NA") %>% rownames()
+
+sample_info <- sample_info %>% dplyr::filter(!(barcode %in% samples_to_remove))
+
+counts <- counts[, setdiff(colnames(counts), samples_to_remove)]
+counts %>% dim
+
+
+# gene filter
+counts_cpm <- cpm(counts)
+keep = rowSums(counts_cpm > 0.5) > (dim(counts)[2] / 2)
+keep %>% str
+
+counts <- counts[keep, ]
+gene_info <- gene_info[keep, ]
+
+y <- DGEList(counts = counts, 
+             samples = sample_info, 
+             genes = gene_info, 
+             group = sample_info$Stage)
+y$samples
+```
+
+
+```{r}
+y <- calcNormFactors(y, method = "TMM")
+y$samples
+```
+
+```{r}
+design <- model.matrix(~ 0 + y$samples$group)
+design %>% dim
+colnames(design) <- gsub("y\\$samples\\$group", "", colnames(design))
+colnames(design) <- design %>% as.data.frame() %>% colnames() %>% make.names()
+design %>% head
+```
+
+
+```{r}
+v <- voom(y, design = design, plot = TRUE)
+fit <- lmFit(v)
+cont_mat <- makeContrasts(S.III.I = Stage.III - Stage.I, levels = design)
+fit_cont <- contrasts.fit(fit = fit, contrasts = cont_mat)
+fit_cont <- eBayes(fit_cont)
+
+summ <- decideTests(fit_cont)
+summ %>% summary()
+```
+
+```{r}
+table <- topTable(fit_cont, coef = 1, number = Inf) %>% as.data.frame()
+table %>% dplyr::arrange(P.Value)
+
+rank_list = setNames( - log10(table$P.Value) * sign(table$logFC), table$gene_name)
+```
+
+
+```{r}
+library(biomaRt)
+library(fgsea)
+
+evidence_codes <- c("EXP", "IDA", "IPI", "IMP", "IGI", "IEP", 
+                    "HTP", "HDA", "HMP", "HGI", "HEP", 
+                    "IBA", "IBD", "IKR", "IRD")
+
+hmart <- useEnsembl(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
+searchAttributes(hmart, "HGNC")
+
+gene_df <- getBM(attributes = c("hgnc_symbol", "name_1006", "go_linkage_type"), 
+                 filters = "hgnc_symbol", 
+                 values = table$gene_name, 
+                 mart = hmart)
+
+gene_df <- gene_df %>% dplyr::filter(go_linkage_type %in% evidence_codes)
+pathways = split(gene_df$hgnc_symbol, gene_df$name_1006)
+```
+
+
+```{r}
+gsea <- fgsea(pathways = pathways, 
+              stats = rank_list, 
+              minSize = 50, 
+              maxSize = 500)
+
+up <- gsea %>% dplyr::arrange(-NES, pval) %>% head(20)
+down <- gsea %>% dplyr::arrange(NES, pval) %>% head(20)
+top <- up %>% dplyr::arrange(pval) %>% rbind(down %>% dplyr::arrange(-pval))
+
+top <- top %>% 
+    dplyr::mutate(log10pval = ifelse(NES > 0, -log10(pval), log10(pval)), 
+                  colour = ifelse(NES > 0, "tomato", "steelblue")) %>% 
+    dplyr::group_by(NES) %>% 
+    dplyr::arrange(-log10pval) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(y = 40:1)
+
+top %>% 
+  ggplot(aes(log10pval, reorder(pathway, log10pval))) +
+  geom_bar(aes(fill = colour), stat = "identity", show.legend = F) +
+  geom_text(data = top[top$NES > 0, ], aes(x = -0.2, y = y,label = pathway), hjust = 1, size = 3) +
+  geom_text(data = top[top$NES < 0, ], aes(x = 0.2, y = y, label = pathway), hjust = 0, size = 3) +
+  scale_y_discrete(name = NULL, label = NULL) +
+  scale_x_continuous(name = NULL, limits = c(-35, 35), breaks = seq(-30, 30, 10), label = abs(seq(-30,30,10))) +
+  theme_minimal() +
+  ggtitle(label = "TCGA-HILC Stage III vs TCGA-HILC Stage I") +
+  scale_fill_identity()
+
+ggsave("GSEA.png")
+```
+
+
+
+
+
+
+
+
+
+
+
