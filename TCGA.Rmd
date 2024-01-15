@@ -1,0 +1,380 @@
+---
+title: "kidney-tumor"
+author: "yincy"
+date: "5/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# kidney primary tumor
+```{r, eval=FALSE}
+library(TCGAbiolinks)
+library(magrittr)
+library(dplyr)
+library(SummarizedExperiment)
+library(ggplot2)
+
+kidney_tumor_projects <- c("TARGET-WT", "TCGA-KIRP", "TCGA-KIRC", "TCGA-KICH", "TARGET-CCSK")
+
+ccrcc_summary <- getProjectSummary(project = "TCGA-KIRC", legacy = F)
+ccrcc_sample_summary <- getSampleFilesSummary(project = "TCGA-KIRC", legacy = F)
+
+ccrcc_query_info <- GDCquery(project = "TCGA-KIRC", # ccrCC
+                         data.category = "Transcriptome Profiling", 
+                         experimental.strategy = "RNA-Seq", 
+                         data.type = "Gene Expression Quantification", 
+                         sample.type = "Primary Tumor", 
+                         workflow.type = "STAR - Counts",
+                         access = "open", 
+                         legacy = F)
+
+saveRDS(ccrcc_query_info, "/home/yincy/git/data/kidney/TCGA/ccrcc_query_info.rds")
+getResults(query = ccrcc_query_info) 
+
+ccrcc_query_info <- readRDS("/home/yincy/git/data/kidney/TCGA/ccrcc_query_info.rds")
+
+GDCdownload(query = ccrcc_query_info, 
+            directory = "/home/yincy/git/data/kidney/TCGA/", 
+            files.per.chunk = 10, 
+            method = "api")
+
+ccrcc <- GDCprepare(query = ccrcc_query_info, 
+                    directory = "/home/yincy/git/data/kidney/TCGA/")
+
+saveRDS(ccrcc, 
+        file = "/home/yincy/git/data/kidney/ccrcc_summrizedexpriment.rds")
+
+ccrcc <- readRDS("/home/yincy/git/data/kidney/ccrcc_summrizedexpriment.rds")
+
+colData(ccrcc)[, 1:10, 1:3]
+
+ccrcc %>% colData()
+ccrcc %>% rowData() %>% as.data.frame() %>% filter(gene_name == "PDGFB")
+assayNames(ccrcc)
+
+sample_info <- colData(ccrcc) %>% as.data.frame()
+pdgfb_fpkm <- assay(ccrcc, "fpkm_unstrand")["ENSG00000100311.17", ] %>% 
+    as.data.frame() %>% tibble::rownames_to_column() %>% 
+    magrittr::set_colnames(c("barcode", "fpkm_pdgfb"))
+
+pdgfb_fpkm <- pdgfb_fpkm %>% left_join(sample_info, by = c("barcode" = "barcode"))
+
+pdgfb_summary <- pdgfb_fpkm %>% 
+    filter(!is.na(ajcc_pathologic_stage)) %>% 
+    group_by(ajcc_pathologic_stage) %>% 
+    summarise(n = n(), 
+              mean = median(fpkm_pdgfb), 
+              se = sd(fpkm_pdgfb)/sqrt(n - 1))
+seg_df <- data.frame(
+    x = rep(1, 3), 
+    y = max(pdgfb_fpkm$fpkm_pdgfb) * c(1.1, 1.2, 1.3) + 0.9, 
+    xend = seq(2, 4, 1), 
+    yend = max(pdgfb_fpkm$fpkm_pdgfb) * c(1.1, 1.2, 1.3) + 0.9
+)
+
+text_df <- data.frame(
+    x = c(1.5, 2.0, 2.5), 
+    y = max(pdgfb_fpkm$fpkm_pdgfb) * c(1.08, 1.18, 1.28) + 1.02,
+    label = c("*", "*", "**")
+)
+
+pdgfb_fpkm %>% 
+    filter(!is.na(ajcc_pathologic_stage)) %>% 
+    ggplot(aes(ajcc_pathologic_stage, fpkm_pdgfb)) +
+    geom_boxplot(outlier.alpha = 0) +
+    geom_line(data = pdgfb_summary, aes(ajcc_pathologic_stage, mean), group = 1, col = "gray30", size = 1.2) +
+    geom_jitter(width = 0.2) +
+    geom_segment(data = seg_df, 
+                 aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_text(data = text_df, 
+              aes(x = x, y = y, label = label), size = 8) +
+    scale_x_discrete(name = "AJCC pathologic stage", 
+                     labels = paste(pdgfb_summary$ajcc_pathologic_stage, " \nn = ", pdgfb_summary$n, sep = "")) +
+    scale_y_continuous(name = "log2( FPKM of PDGFB )", 
+                       trans = "log2") +
+    theme_classic() +
+    labs(title = "expression of PDGFB in different AJCC pathologic stage", 
+         subtitle = "data from TCGA-KIRC (ccRCC) project")
+ggsave("/home/yincy/git/Data/Kidney/TCGA/Pdgfb-ccRCC-stage-expression.tiff", 
+       width = 16.18, height = 10)
+```
+
+```{r}
+library(multcomp)
+
+fit <- aov(fpkm_pdgfb ~ ajcc_pathologic_stage, data = pdgfb_fpkm) 
+pairwise <- TukeyHSD(fit)
+```
+
+
+
+# all projects
+```{r}
+library(dplyr)
+
+projects <- getGDCprojects()
+saveRDS(projects, "../../../data/GDC/projects_info/getGDCprojetcs.rds")
+pro_sum <- vector(mode = "list")
+for(project in projects$id){
+    current <- getProjectSummary(project = project, legacy = F)
+    pro_sum[[project]] <- current[["data_categories"]]
+    pro_sum[[project]]$project <- project
+    Sys.sleep(time = 10)
+}
+
+project_summary_df <- pro_sum %>% purrr::map_df(.f = dplyr::bind_rows)
+saveRDS(project_summary_df, "../../../data/GDC/GDC_query/TCGA_all_project_summary.rds")
+
+project_summary_df <- readRDS("../../../data/GDC/GDC_query/TCGA_all_project_summary.rds")
+has_rnaseq_projects <- project_summary_df %>% 
+    dplyr::filter(data_category == "Transcriptome Profiling") %>% 
+    dplyr::pull(project) %>% 
+    unique()
+
+data_category <- project_summary_df %>% pull(data_category) %>% unique()
+experiment_strategy <- c("WXS", "RNA-Seq", "miRNA-Seq", "Genotyping Array")
+```
+
+
+```{r}
+projects_query_list <- readRDS("../../../data/GDC/GDC_query/")
+projects_query_list <- vector(mode = "list")
+
+for(project in has_rnaseq_projects){
+    if(!(project %in% names(projects_query_list))){
+        query <- try(GDCquery(project = project, 
+                 data.category = "Transcriptome Profiling", 
+                 data.type = "Gene Expression Quantification", 
+                 workflow.type = "STAR - Counts", 
+                 experimental.strategy = "RNA-Seq", 
+                 sample.type = "Primary Tumor", 
+                 legacy = F), silent = T)
+        if(class(query) == "try-error"){
+            print(paste0("downloading ", project, " failed..."))
+        }else{
+            projects_query_list[[project]] <- query
+        }
+    }
+    else{
+        projects_query_list[[project]] = projects_query_list[[project]]
+        print(paste0(project, " query already exists..."))
+    }
+}
+
+
+saveRDS(object = projects_query_list, 
+        file = "../../../data/GDC/GDC_query/all_projects_query_info.rds")
+```
+
+```{r}
+all_projects_clinical_info[["TARGET-ALL-P1"]] %>% dplyr::pull(ajcc_pathologic_m) %>% table(useNA = "ifany")
+```
+
+
+```{r}
+library(tidyr)
+projects_query_list <- readRDS("../../../data/GDC/GDC_query/all_projects_query_info.rds")
+
+for(project in projects_query_list){
+    do.call(
+        what = "GDCdownload", 
+        args = list(query = project, 
+                    method = "api", 
+                    directory = "../../../data/GDC/GDC_data/", 
+                    files.per.chunk = 100)
+    )
+}
+```
+
+
+```{r}
+library(magrittr)
+library(fs)
+
+not_prepared <- vector(mode = "character")
+for(project in names(projects_query_list)){
+    if(file_exists(paste0("../../../data/GDC/GDC_prepared/", project, ".rds"))){
+        print(paste0(project, " has already prepared..."))
+    } else {
+        eset <- try(do.call(what = "GDCprepare",
+                        args = list(
+                        query = projects_query_list[[project]], 
+                        directory = "../../../data/GDC/"            
+        )), 
+        silent = T)
+        if(class(eset) == "try-error"){
+            print("error arised...")
+            not_prepared <- append(not_prepared, project)
+        }else{
+            saveRDS(eset, paste("../../../data/GDC/GDC_prepared/", project, ".rds", sep = ""))
+        }
+    }
+}
+not_prepared
+```
+
+
+```{r}
+indicators <- c(
+    "TARGET-NBL" = "inss_stage,tumor_grade,days_to_last_follow_up", 
+    "CGCI-BLGSP" = "ann_arbor_b_symptoms,ann_arbor_pathologic_stage,days_to_death", 
+    "REBC-THYR" = "ajcc_pathologic_stage,ajcc_pathologic_t,ajcc_pathologic_m,ajcc_pathologic_n",
+    "TARGET-ALL-P1" = "", 
+    "TARGET-RT" = "days_to_last_follow_up,cog_renal_stage,days_to_death", 
+    "TARGET-CCSK" = "days_to_last_follow_up,cog_renal_stage,days_to_death", 
+    "MP2PRT-WT" = "days_to_death",
+    "NCICCR-DLBCL" = "",
+    "OHSU-CNL" = "",
+    "WCDT-MCRPC" = "",
+    "ORGANOID-PANCREATIC" = "",
+    "CTSP-DLBCL1" = "",
+    "TARGET-OS" = "days_to_last_follow_up,days_to_death", 
+    "TARGET-ALL-P2" = "", 
+    "CMI-ASC" = "", 
+    "TCGA-ESCA" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n, ajcc_pathologic_m,ajcc_clinical_stage,ajcc_clinical_m,ajcc_clinical_n,ajcc_clinical_t,days_to_death",
+    "TCGA-SARC" = "days_to_last_follow_up,days_to_death,paper_pathologic tumor size,paper_FNCLCC grade",
+    "TCGA-CESC" = "figo_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_m.ajcc_pathologic_n,days_to_death,paper_CLIN:days_to_last_known_alive,paper_CLIN:clinStage",
+    "TCGA-UCEC" = "figo_stage,days_to_last_follow_up,days_to_death,paper_X2009stagegroup,paper_tumor_grade,paper_histology_grade",
+    "TCGA-LAML" = "",
+    "TCGA-TGCT" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_clinical_stage,ajcc_pathologic_t,ajcc_pathologic_m,ajcc_pathologic_n,ajcc_clinical_m,ajcc_clinical_t,ajcc_clinical_n,igcccg_stage,days_to_death",
+    "TCGA-CHOL" = "ajcc_pathologic_stage,ajcc_pathologic_t,ajcc_pathologic_m,ajcc_pathologic_n,days_to_death,paper_tumor_grade,paper_ajcc_tumor_pathologic_pt,paper_ajcc_tumor_pathologic_pn,paper_ajcc_tumor_pathologic_pm,paper_ajcc_pathologic_tumor_stage,paper_days to death or last contact",
+    "TCGA-MESO" = "days_to_last_follow_up,ajcc_pathologic_stage,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TCGA-ACC" = "days_to_last_follow_up,ajcc_pathologic_stage,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TCGA-DLBC" = "ann_arbor_clinical_stage,days_to_last_follow_up,ann_arbor_b_symptoms,days_to_death",
+    "TCGA-PCPG" = "days_to_last_follow_up,days_to_death",
+    "CPTAC-3" = "",
+    "MMRF-COMMPASS" = "",
+    "TCGA-KICH" = "ajcc_pathologic_stage,shortest_dimension,longest_dimension,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,ajcc_clinical_m,paper_Pathologic.Spread.Lymph.Nodes,paper_T.Stage,paper_Tumor.Stage,paper_Max.Follow.up,paper_Number.Of.Lymph.Nodes.Positive",
+    "TCGA-THCA" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TCGA-THYM" = "days_to_last_follow_up,masaoka_stage",
+    "TCGA-UCS" = "figo_stage,days_to_last_follow_up,days_to_death,paper_clinical_stage,paper_clinical_stageI",
+    "TCGA-GBM" = "days_to_last_follow_up,paper_Grade,paper_Survival..months.,shortest_dimension,longest_dimension,intermediate_dimension",
+    "TCGA-UVM" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_clinical_m,ajcc_clinical_n,ajcc_clinical_t,ajcc_clinical_stage,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_Death/ Metastasis",
+    "CMI-MBC" = "", 
+    "CPTAC-2" = "ajcc_pathologic_stage,figo_stage", 
+    "TCGA-COAD" = "intermediate_dimension,shortest_dimension,longest_dimension,ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_days_to_last_followup,paper_days_to_last_known_alive,paper_lymphatic_invasion_present,paper_tumor_stage", 
+    "TCGA-STAD" = "intermediate_dimension,shortest_dimension,longest_dimension,ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,aper_TNM.Stage,paper_Pathologic.M,paper_Pathologic.N,paper_Pathologic.T,paper_Days.to.Last.Follow.up,paper_Days.to.Death",
+    "TCGA-OV" = "figo_stage,longest_dimension,shortest_dimension,intermediate_dimension,days_to_last_follow_up,days_to_death", 
+    "TARGET-WT" = "cog_renal_stage,days_to_last_follow_up,days_to_death", 
+    "EXCEPTIONAL_RESPONDERS-ER" = "ajcc_pathologic_stage,ajcc_clinical_stage",
+    "BEATAML1.0-COHORT" = "",
+    "CGCI-HTMCP-CC" = "",
+    "TARGET-AML" = "",
+    "TCGA-KIRC" = "shortest_dimension,longest_dimension,intermediate_dimension,ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TCGA-LGG" = "shortest_dimension,longest_dimension,intermediate_dimension,days_to_last_follow_up,days_to_death,paper_Grade,paper_Survival..months.",
+    "TCGA-HNSC" = "longest_dimension,shortest_dimension,intermediate_dimension,ajcc_pathologic_stage,ajcc_clinical_stage,days_to_last_follow_up,ajcc_clinical_m,ajcc_clinical_n,ajcc_clinical_t,ajcc_pathologic_n,ajcc_pathologic_m,ajcc_pathologic_t,days_to_death",
+    "TCGA-BLCA" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_n,ajcc_pathologic_m,ajcc_pathologic_t,days_to_death,paper_AJCC Tumor category,paper_Lymphovascular invasion,paper_AJCC pathologic tumor stage,paper_Histologic grade,paper_Combined days to last followup or death", 
+    "TCGA-LUAD" = "shortest_dimension,longest_dimension,ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_T.stage,paper_N.stage,paper_Tumor.stage", 
+    "TCGA-PRAD" = "longest_dimension,shortest_dimension,intermediate_dimension,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_last_follow_up,ajcc_clinical_t,paper_Clinical_Gleason_sum,paper_Reviewed_Gleason_sum",
+    "TCGA-LIHC" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TCGA-LUSC" = "ajcc_pathologic_stage,shortest_dimension,longest_dimension,intermediate_dimension,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_T.stage,paper_N.stage,paper_M.stage",
+    "TCGA-SKCM" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death",
+    "TARGET-ALL-P3" = "",
+    "HCMI-CMDC" = "ajcc_pathologic_stage,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,ajcc_clinical_stage,days_to_death,tumor_grade",
+    "TCGA-KIRP" = "shortest_dimension,longest_dimension,intermediate_dimension,ajcc_pathologic_stage,ajcc_clinical_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,ajcc_clinical_t,ajcc_clinical_n,ajcc_clinical_m,days_to_death,paper_Tumor.Stage..Clinical,paper_Clinical.Spread..Primary.Tumor..T.,paper_Clinical.Spread..Lymph.Nodes..N.,paper_Clinical.Spread..Distant.Metastases..M.,paper_Largest.Dimension,paper_Smallest.Dimension",
+    "TCGA-BRCA" = "ajcc_pathologic_stage,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_days_to_death,paper_days_to_last_followup,paper_pathologic_stage,paper_Tumor_Grade",
+    "TCGA-PAAD" = "ajcc_pathologic_stage,shortest_dimension,longest_dimension,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_Grade",
+    "TCGA-READ" = "ajcc_pathologic_stage,shortest_dimension,longest_dimension,days_to_last_follow_up,ajcc_pathologic_t,ajcc_pathologic_n,ajcc_pathologic_m,days_to_death,paper_tumor_stage,paper_number_of_lymphnodes_positive_by_he"
+)
+
+
+stage_info <- data.frame(projects = has_rnaseq_projects, 
+                         indicators = indicators[has_rnaseq_projects])
+rownames(stage_info) <- stage_info$projects
+saveRDS(stage_info, "../../../data/GDC/GDC_query/stage_info.rds")
+
+no_info_projects <- stage_info %>% filter(nchar(indicators) < 1) %>% pull(projects)
+```
+
+
+# downloading clinical information
+```{r}
+all_projects_clinical_info <- vector(mode = "list")
+error_projects <- vector(mode = "character")
+
+for(project in has_rnaseq_projects){
+    if(project %in% names(all_projects_clinical_info)){
+        print(paste0(project, "'s clinical information has been downlowded..."))
+        all_projects_clinical_info[[project]] <- all_projects_clinical_info[[project]]
+    }else{
+        info <- try(GDCquery_clinic(project = project), silent = T)
+        if(class(info) == "try-error"){
+            print(paste0(project, "'s clinical downloweding failed..."))
+            error_projects <- append(error_projects, project)
+        }else{
+            all_projects_clinical_info[[project]] <- info
+            print(paste0(project, "'s clinical information downloaded..."))
+        }
+    }
+}
+
+saveRDS(all_projects_clinical_info, "../../../data/GDC/GDC_query/all_projects_clinical_info.rds")
+```
+
+
+# data preparing
+```{r}
+library(fs)
+library(ggplot2)
+library(magrittr)
+
+GDC_data <- dir_ls("../../../data/GDC/GDC_data/") %>% basename()
+GDC_prepare <- dir_ls("../../../data/GDC/GDC_prepared/") %>% basename %>% gsub(pattern = ".rds$", replacement = "", x = .)
+all_projects_clinical_info <- readRDS("/home/yincy/git/data/GDC/GDC_query/all_projects_clinical_info.rds")
+clinical_info <- all_projects_clinical_info %>% names()
+
+df <- data.frame(
+    GDC_data = GDC_data, 
+    GDC_prepare = GDC_prepare[match(GDC_data, GDC_prepare)],
+    clinical_info = clinical_info[match(GDC_data, clinical_info)]    
+)
+needs_manually_prepare <- df %>% filter(is.na(GDC_prepare), !is.na(clinical_info)) %>% pull(clinical_info)
+```
+
+
+```{r}
+source("helper_functions.R")
+ses <- dir_ls("../../../data/GDC/GDC_prepared/")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Bioconductor data 
+- RTCGA.clinical  
+- curratedTCGAData
+- RTCGA.mRNA
+```{r}
+BiocManager::install(c("RTCGA.clinical", "curratedTCGAData", "RTCGA.mRNA"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
