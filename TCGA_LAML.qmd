@@ -1,0 +1,66 @@
+---
+title: "TCGA_LAML"
+author: "YinCY"
+format: html
+---
+
+
+```{r}
+library(TCGAbiolinks)
+```
+
+# query
+```{r}
+?GDCquery
+GDCquery(project = "TCGA-LAML", 
+         data.category = "Transcriptome Profiling", 
+         data.type = "Gene Expression Quantification", 
+         workflow.type = "STAR - Counts", 
+         access = "open", 
+         experimental.strategy = "RNA-Seq")
+query_LAML <- .Last.value
+saveRDS(query_LAML, "query_LAML.rds")
+```
+
+# download
+```{r}
+?GDCdownload
+GDCdownload(query = query_LAML, 
+            method = "api", 
+            directory = "../data/Tumor/TCGA-LAML", 
+            files.per.chunk = 1)
+```
+
+
+
+```{r}
+TCGAbiolinks::getProjectSummary(project = "TCGA-LAML")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

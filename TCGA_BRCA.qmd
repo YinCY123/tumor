@@ -1,0 +1,67 @@
+---
+title: "TCGA_BRCA"
+author: "YinCY"
+format: html
+---
+
+
+```{r}
+#| message: false
+#| warning: false
+library(TCGAbiolinks)
+```
+
+
+```{r}
+#| message: false
+#| warning: false
+GDCquery(project = "TCGA-BRCA", 
+         data.category = "Transcriptome Profiling", 
+         data.type = "Gene Expression Quantification", 
+         workflow.type = "STAR - Counts", 
+         experimental.strategy = "RNA-Seq", 
+         access = "open")
+query_BRCA <- .Last.value
+saveRDS(query_BRCA, "query_BRCA.rds")
+```
+
+
+```{r}
+getProjectSummary(project = "TCGA-BRCA")
+```
+
+# downloading
+```{r}
+GDCdownload(query = query_BRCA,
+            directory = "../data/Tumor/", 
+            files.per.chunk = 1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

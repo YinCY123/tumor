@@ -1,0 +1,1768 @@
+---
+title: "Broad_GDAC_firehorse PDGFs"
+author: "YinCY"
+format: html
+editor: source
+---
+
+# broad firehose
+```{r}
+library(FirebrowseR)
+ls("package:FirebrowseR")
+```
+
+# download sequencing data
+```{r}
+library(purrr)
+library(dplyr)
+library(magrittr)
+
+cohorts <- c('ACC','BLCA','BRCA','CESC','CHOL',
+             'COAD','COADREAD','DLBC','ESCA',
+             'GBM','GBMLGG','HNSC','KICH','KIPAN',
+             'KIRC','KIRP','LAML','LGG','LIHC',
+             'LUAD','LUSC','MESO','OV','PAAD',
+             'PCPG','PRAD','READ','SARC','SKCM',
+             'STAD','STES','TGCT','THCA','THYM',
+             'UCEC','UCS','UVM')
+genes <- c("PDGFA", 'PDGFB', "PDGFC", "PDGFD", "PDGFRA", "PDGFRB")
+pdgfs_mrna_list <- vector(mode = "list")
+
+for(cohort in cohorts){
+    if(cohort %in% names(pdgfs_mrna_list)){
+        print(paste0(cohort, " has been downloaded..."))
+        next
+    }
+    
+    flag = TRUE
+    page = 1
+    page_size = 2000
+    current <- vector(mode = "list")
+    
+    while(flag){
+        current[[page]] <- try(Samples.mRNASeq(format = "csv",
+                                       page = page, 
+                                       page_size = page_size,
+                                       gene = genes, 
+                                       cohort = cohort), 
+                               silent = T)
+        if(class(current[[page]]) == "try-error"){
+            print(paste0(cohort, "downloading failed..."))
+            break
+        }
+        
+        current[[page]] <- as.matrix(current[[page]])
+        if(nrow(current[[page]]) < page_size){
+            flag = FALSE
+        }
+        page = page + 1
+    }
+    
+    
+    project <- do.call(rbind, current)
+    pdgfs_mrna_list[[cohort]] <- as.data.frame(project)
+}
+
+
+pdgfs_mrna_list %>% length
+pdgfs_mrna_list %>% sapply(dim)
+saveRDS(pdgfs_mrna_list, 
+        file = "../../../data/Firehose/pdgfs_mrna_list.rds")
+```
+
+
+# download clinical data
+```{r}
+pdgfs_clinical_list <- vector(mode = "list")
+
+for(cohort in cohorts){
+    flag = T
+    page = 1
+    page_size = 2000
+    current <- vector(mode = "list")
+    while(flag){
+        current[[page]] <- try(Samples.Clinical_FH(format = "csv", 
+                                                   cohort = cohort, 
+                                                   page = page, 
+                                                   page_size = page_size), 
+                               silent = T)
+        if(class(current[[page]]) == "try-error"){
+            print(paste0(cohort, " dowloading failed..."))
+            break
+        }
+        
+        if(nrow(current[[page]]) < page_size){
+            flag = FALSE
+        }
+        page = page + 1
+    }
+    
+    project <- map_dfr(current, bind_rows)
+    pdgfs_clinical_list[[cohort]] <- project
+    print(paste0(cohort, " clinical information has been downloaded..."))
+}
+
+
+pdgfs_clinical_list %>% length()
+pdgfs_clinical_list %>% sapply(dim)
+saveRDS(pdgfs_clinical_list, 
+        file = "../../../data/Firehose/pdgfs_clinical_list.rds")
+```
+
+
+# integration
+```{r}
+pdgfs_mrna_list <- readRDS("../../../data/Firehose/pdgfs_mrna_list.rds")
+pdgfs_clinical_list <- readRDS("../../../data/Firehose/pdgfs_clinical_info_list.rds")
+for(i in seq_along(pdgfs_mrna_list)){
+    l <- split(pdgfs_mrna_list[[i]], f = pdgfs_mrna_list[[i]]$gene)
+    pdgfs_mrna_list[[i]] <- l
+}
+
+for(name in names(pdgfs_mrna_list)){
+    for(i in seq_along(pdgfs_mrna_list[[name]])){
+        pdgfs_mrna_list[[name]][[i]] <- merge(x = pdgfs_mrna_list[[name]][[i]], 
+                               y = pdgfs_clinical_list[[name]], 
+                               by = "tcga_participant_barcode")
+    }
+}
+
+library(dplyr)
+library(purrr)
+pdgfs_mrna_clinical_list <- pdgfs_mrna_list
+
+for(name in names(pdgfs_mrna_clinical_list)){
+    pdgfs_mrna_clinical_list[[name]] <- map_dfr(pdgfs_mrna_clinical_list[[name]], .f = bind_rows)
+}
+
+saveRDS(pdgfs_mrna_clinical_list, "../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+```
+
+
+# data decoding and transformation
+```{r}
+library(dplyr)
+
+pdgfs_mrna_clinical_list <- readRDS("../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+
+# combine days_to_death and days_to_last_followup columns
+col_names <- pdgfs_mrna_clinical_list %>% sapply(FUN = names)
+days <- c("days_to_death", "days_to_last_followup")
+
+flag <- sapply(col_names, FUN = function(x){
+    (length(intersect(x, days)) == 2)
+})
+flag %>% table
+
+for(name in names(pdgfs_mrna_clinical_list)){
+    pdgfs_mrna_clinical_list[[name]]$days_to_death <- ifelse(is.na(pdgfs_mrna_clinical_list[[name]]$days_to_death), 
+                                                             pdgfs_mrna_clinical_list[[name]]$days_to_last_followup, 
+                                                             pdgfs_mrna_clinical_list[[name]]$days_to_death)
+}
+
+
+# data type conversion: expression_log2, z.score
+pdgfs_mrna_clinical_list <- lapply(pdgfs_mrna_clinical_list, 
+                                   FUN = transform, 
+                                   expression_log2 = as.numeric(expression_log2), 
+                                   z.score = as.numeric(z.score))
+
+saveRDS(pdgfs_mrna_clinical_list, "../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+
+# combine pathologic stages
+stage_num <- sapply(pdgfs_mrna_clinical_list,
+                    FUN = function(df){
+                        length(unique(df$pathologic_stage))
+                    })
+
+karnofsky_performance_score <- data.frame(
+    score = seq(100, 10, -10), 
+    mean = c("normal, no evidence of disease", 
+             "able to perform normal activity with only minor symptoms", 
+             "normal activity with effort, some symptoms", 
+             "able to care for self but unable to do normal activities", 
+             "requires occasional assistance, care for most needs", 
+             "requires considerable assistance", 
+             "disabled, requires special assistance", 
+             "severely disabled", 
+             "very sick, requires active supportive treatment", 
+             "moribund"))
+
+gleason_score <- data.frame(score = c("2-5", "6-7", "8-10"), 
+                            mean = "low differentiated", "median differentiated", "high differentiated")
+
+stage_num
+stage <- data.frame(stage = c(
+    "ACC" = "pathologica_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "BLCA" = "pathologica_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "BRCA" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "CESC" = "clinical_stage,neoplasm_histologic_grade,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "CHOL" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "COAD" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "COADREAD" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "DLBC" = "days_to_death,gender", 
+    "ESCA" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,gender", 
+    "GBM" = "karnofsky_performance_score,days_to_death,gender", 
+    "GBMLGG" = "days_to_death,karnofsky_performance_score,gender", 
+    "HNSC" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "KICH" = "pathologic_stage,days_to_death,pathology_M_stage,pathology_N_stage,pathology_T_stage,gender", 
+    "KIPAN" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,gender", 
+    "KIRC" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,karnofsky_performance_score,gender", 
+    "KIRP" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,karnofsky_performance_score,gender", 
+    "LAML" = "days_to_death,gender",
+    "LGG" = "days_to_death,karnofsky_performance_score,gender", 
+    "LIHC" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender",
+    "LUAD" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "LUSC" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,gender", 
+    "MESO" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,gender",
+    "OV" = "karnofsky_performance_score,days_to_death,gender",
+    "PAAD" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "PCPG" = "days_to_death,karnofsky_performance_score,gender", 
+    "PRAD" = "gleason_score,pathology_N_stage,pathology_T_stage,gender,days_to_death", 
+    "READ" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender", 
+    "SARC" = "days_to_death,gender",
+    "SKCM" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender",
+    "STAD" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender",
+    "STES" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,karnofsky_performance_score,days_to_death,gender",
+    "TGCT" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,karnofsky_performance_score,gender",
+    "THCA" = "pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,days_to_death,gender",
+    "THYM" = "days_to_death,gender",
+    "UCEC" = "days_to_death,gender", 
+    "UCS" = "days_to_death,gender", 
+    "UVM" = "days_to_death,pathologic_stage,pathology_M_stage,pathology_N_stage,pathology_T_stage,gender"
+))
+stage$tumor <- rownames(stage)
+stage
+```
+
+
+# encoding
+```{r}
+# ACC
+pdgfs_mrna_clinical_list[["ACC"]] <- transform(pdgfs_mrna_clinical_list[["ACC"]], 
+                                               Stage = factor(sapply(pdgfs_mrna_clinical_list[["ACC"]]$pathologic_stage, 
+                                                              FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                       "stage ii" = "Stage II", "stage iii" = "Stage III", 
+                                                                                       "stage iv" = "Stage IV", "NA" = "NA")}), 
+                                                              levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                              labels = c(1, 2, 3, 4)))
+
+pdgfs_mrna_clinical_list[["ACC"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ACC"]]$stage %>% table(useNA = "ifany")
+
+
+
+pdgfs_mrna_clinical_list[["ACC"]] <- transform(pdgfs_mrna_clinical_list[["ACC"]], 
+                                               Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["ACC"]]$pathology_T_stage, 
+                                                                FUN = function(x){switch(x, "t1" = "T1", "t2" = "T2", 
+                                                                                         "t3" = "T3", "t4" = "T4", "NA" = "NA")}), 
+                                                                levels = c("T1", "T2", "T3", "T4"), 
+                                                                labels = c(1, 2, 3, 4)))
+
+pdgfs_mrna_clinical_list[["ACC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ACC"]]$Stage_T %>% table
+
+pdgfs_mrna_clinical_list[["ACC"]] <- transform(pdgfs_mrna_clinical_list[["ACC"]], 
+                                               Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["ACC"]]$pathology_N_stage, 
+                                                                       FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                                "n1" = "N1", "NA" = "NA")}), 
+                                                                levels = c("N0", "N1"), 
+                                                                labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["ACC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ACC"]]$Stage_N %>% table(useNA = "ifany")
+
+
+# BLCA
+pdgfs_mrna_clinical_list[["BLCA"]] <- transform(pdgfs_mrna_clinical_list[["BLCA"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["BLCA"]]$pathologic_stage, 
+                                                              FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                       "stage ii" = "Stage II", 
+                                                                                       "stage iii" = "Stage III", 
+                                                                                       "stage iv" = "Stage IV", 
+                                                                                       "NA" = "NA")}), 
+                                                              levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                              labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["BLCA"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[['BLCA']]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[['BLCA']] <- transform(pdgfs_mrna_clinical_list[["BLCA"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["BLCA"]]$pathology_M_stage, 
+                                                                 FUN = function(x)switch(x, "m0" = "M0", "m1" = "M1", 
+                                                                                         "mx" = "MX", "NA" = "NA")), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[['BLCA']]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BLCA"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["BLCA"]] <- transform(pdgfs_mrna_clinical_list[["BLCA"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["BLCA"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", 
+                                                                                          "n2" = "N2", "n3" = "N3", 
+                                                                                          "nx" = "Nx", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["BLCA"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BLCA"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["BLCA"]] <- transform(pdgfs_mrna_clinical_list[["BLCA"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["BLCA"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t0" = "T0", "tx" = "Tx", "t1" = "T1", 
+                                                                                          "t2" = "T2", "t2a" = "T2", "t2b" = "T2", 
+                                                                                          "t3" = "T3", "t3a" = "T3", "t3b" = "T3", 
+                                                                                          "t4" = "T4", "t4a" = "T4", "t4b" = "T4", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["BLCA"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BLCA"]]$Stage_T %>% table
+
+
+# BRCA
+pdgfs_mrna_clinical_list[["BRCA"]] <- transform(pdgfs_mrna_clinical_list[["BRCA"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["BRCA"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", "stage ia" = "Stage I", "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", "stage iia" = "Stage II", "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", "stage iiia" = "Stage III", "stage iiib" = "Stage III", "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", "stage x" = "Stage X", "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["BRCA"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BRCA"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["BRCA"]] <- transform(pdgfs_mrna_clinical_list[["BRCA"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["BRCA"]]$pathology_M_stage, 
+                                                               FUN = function(x){switch(x, "cm0 (i+)" = "M0", 
+                                                                                        "m0" = "M0", "m1" = "M1", 
+                                                                                        "mx" = "Mx", "NA" = "NA")}), 
+                                                               levels = c("M0", "M1"), 
+                                                               labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["BRCA"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BRCA"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["BRCA"]] <- transform(pdgfs_mrna_clinical_list[["BRCA"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["BRCA"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n0 (i-)" = "N0", 
+                                                                                          "n0 (i+)" = "N0", "n0 (mol+)" = "N0", 
+                                                                                          "n1" = "N1", "n1a" = "N1", "n1b" = "N1", 
+                                                                                          "n1c" = "N1", "n1mi" = "N1", 
+                                                                                          "n2" = "N2", "n2a" = "N2", 
+                                                                                          "n3" = "N3", "n3a" = "N3", 
+                                                                                          "n3b" = "N3", "n3c" = "N3", 
+                                                                                          "nx" = "Nx", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["BRCA"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BRCA"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["BRCA"]] <- transform(pdgfs_mrna_clinical_list[["BRCA"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["BRCA"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", "t1a" = "T1", 
+                                                                                          "t1b" = "T1", "t1c" = "T1", 
+                                                                                          "t2" = "T2", "t2a" = "T2", 
+                                                                                          "t2b" = "T2", "t3" = "T3", 
+                                                                                          "t3a" = "T3", "t4" = "T4", 
+                                                                                          "t4b" = "T4", "t4d" = "T4", 
+                                                                                          'tx' = "Tx", "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["BRCA"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["BRCA"]]$Stage_T %>% table
+
+
+# CESC
+pdgfs_mrna_clinical_list[["CESC"]] <- transform(pdgfs_mrna_clinical_list[["CESC"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["CESC"]]$clinical_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", "stage ia" = "Stage I", 
+                                                                                        "stage ia1" = "Stage I", "stage ia2" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", "stage ib1" = "Stage I", 
+                                                                                        "stage ib2" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", "stage iia" = "Stage II", 
+                                                                                        "stage iia1" = "Stage II", "stage iia2" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iva" = "Stage IV", "stage ivb" = "Stage IV", "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["CESC"]]$clinical_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CESC"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["CESC"]] <- transform(pdgfs_mrna_clinical_list[["CESC"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["CESC"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", "mx" = "Mx", "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["CESC"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CESC"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["CESC"]] <- transform(pdgfs_mrna_clinical_list[["CESC"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["CESC"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", 
+                                                                                          "nx" = "Nx", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["CESC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CESC"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["CESC"]] <- transform(pdgfs_mrna_clinical_list[["CESC"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["CESC"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "tx" = "Tx", 
+                                                                                          "tis" = "Tis",
+                                                                                          "t1a1" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t1b1" = "T1", 
+                                                                                          "t1b2" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2a1" = "T2", 
+                                                                                          "t2a2" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "NA" = "NA")}),
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["CESC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CESC"]]$Stage_T %>% table
+
+
+# CHOL
+pdgfs_mrna_clinical_list[["CHOL"]] <- transform(pdgfs_mrna_clinical_list[["CHOL"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["CHOL"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", "stage ii" = "Stage II", "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", "stage iva" = "Stage IV", "stage ivb" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["CHOL"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CHOL"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["CHOL"]] <- transform(pdgfs_mrna_clinical_list[["CHOL"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["CHOL"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", "mx" = "MX", "NA" ="NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["CHOL"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CHOL"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["CHOL"]] <- transform(pdgfs_mrna_clinical_list[["CHOL"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["CHOL"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", "nx" = "NX", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["CHOL"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CHOL"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["CHOL"]] <- transform(pdgfs_mrna_clinical_list[["CHOL"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["CHOL"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["CHOL"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["CHOL"]]$Stage_T %>% table
+
+
+# COAD
+pdgfs_mrna_clinical_list[["COAD"]] <- transform(pdgfs_mrna_clinical_list[["COAD"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["COAD"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", "stage ia" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", "stage iic" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", "stage iva" = "Stage IV", 
+                                                                                        "stage ivb" = "Stage IV", "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["COAD"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COAD"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["COAD"]] <- transform(pdgfs_mrna_clinical_list[["COAD"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["COAD"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", 
+                                                                                          "m1a" = "M1", "m1b" = "M1", 
+                                                                                          "mx" = "MX", "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["COAD"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COAD"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["COAD"]] <- transform(pdgfs_mrna_clinical_list[["COAD"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["COAD"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", 
+                                                                                          "n1a" = "N1", "n1b" = "N1", "n1c" = "N1", 
+                                                                                          "n2" = "N2", "n2a" = "N2", 
+                                                                                          "n2b" = "N2", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2"), 
+                                                                 labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["COAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COAD"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["COAD"]] <- transform(pdgfs_mrna_clinical_list[["COAD"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["COAD"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "t4b" = "T4", 
+                                                                                          "tis" = "Tis", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["COAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COAD"]]$Stage_T %>% table
+
+
+# COADREAD
+pdgfs_mrna_clinical_list[["COADREAD"]] <- transform(pdgfs_mrna_clinical_list[["COADREAD"]], 
+                                                    Stage = factor(sapply(pdgfs_mrna_clinical_list[["COADREAD"]]$pathologic_stage, 
+                                                                   FUN = function(x){switch(x, "stage i" = "Stage I", "stage ia" = "Stage I", 
+                                                                                            "stage ii" = "Stage II", "stage iia" = "Stage II", 
+                                                                                            "stage iib" = "Stage II", "stage iic" = "Stage II", 
+                                                                                            "stage iii" = "Stage III", "stage iiia" = "Stage III", 
+                                                                                            "stage iiib" = "Stage III", "stage iiic" = "Stage III", 
+                                                                                            "stage iv" = "Stage IV", "stage iva" = "Stage IV",
+                                                                                            "stage ivb" = "Stage IV", "NA" = "NA")}), 
+                                                                   levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                                   labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["COADREAD"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COADREAD"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["COADREAD"]] <- transform(pdgfs_mrna_clinical_list[["COADREAD"]], 
+                                                    Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_M_stage, 
+                                                                     FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", 
+                                                                                              "m1a" = "M1", "m1b" = "M1", 
+                                                                                              "mx" = "MX", "NA" = "NA")}), 
+                                                                     levels = c("M0", "M1"), 
+                                                                     labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COADREAD"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["COADREAD"]] <- transform(pdgfs_mrna_clinical_list[["COADREAD"]], 
+                                                    Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_N_stage, 
+                                                                     FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", 
+                                                                                              "n1a" = "N1", "n1b" = "N1", "n1c" = "N1", 
+                                                                                              "n2" = "N2", "n2a" = "N2", 
+                                                                                              "n2b" = "N2", "nx" = "NX", "NA" = "NA")}), 
+                                                                     levels = c("N0", "N1", "N2"), 
+                                                                     labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COADREAD"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["COADREAD"]] <- transform(pdgfs_mrna_clinical_list[["COADREAD"]], 
+                                                    Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_T_stage, 
+                                                                     FUN = function(x){switch(x, "tis" = "Tis", 
+                                                                                              "t1" = "T1", 
+                                                                                              "t2" = "T2", 
+                                                                                              "t3" = "T3", 
+                                                                                              "t4" = "T4", 
+                                                                                              "t4a" = "T4", 
+                                                                                              "t4b" = "T4", 
+                                                                                              "NA" = "NA")}), 
+                                                                     levels = c("T1", "T2", "T3", "T4"), 
+                                                                     labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["COADREAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["COADREAD"]]$Stage_T %>% table
+
+
+# DLBC
+
+
+# ESCA
+pdgfs_mrna_clinical_list[["ESCA"]] <- transform(pdgfs_mrna_clinical_list[["ESCA"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["ESCA"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", "stage iva" = "Stage IV", "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["ESCA"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ESCA"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["ESCA"]] <- transform(pdgfs_mrna_clinical_list[["ESCA"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["ESCA"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", 
+                                                                                          "m1a" = "M1", "mx" = "MX", "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+
+pdgfs_mrna_clinical_list[["ESCA"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ESCA"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["ESCA"]] <- transform(pdgfs_mrna_clinical_list[["ESCA"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["ESCA"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", "n2" = "N2", 
+                                                                                          "n3" = "N3", "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["ESCA"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ESCA"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["ESCA"]] <- transform(pdgfs_mrna_clinical_list[["ESCA"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["ESCA"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t0" = "T0", 
+                                                                                          "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4",
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T0", "T1", "T2", "T3", "T4"), 
+                                                                 labels = c(0, 1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["ESCA"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["ESCA"]]$Stage_T %>% table
+
+
+# GBM
+pdgfs_mrna_clinical_list[["GBM"]] <- transform(pdgfs_mrna_clinical_list[["GBM"]], 
+                                               karnofsky_performance_score = factor(karnofsky_performance_score, levels = seq(100, 10, -10)))
+pdgfs_mrna_clinical_list[["GBM"]]$karnofsky_performance_score %>% table(useNA = "ifany")
+
+
+# GBMLGG
+pdgfs_mrna_clinical_list[["GBMLGG"]] <- transform(pdgfs_mrna_clinical_list[["GBMLGG"]], 
+                                                  karnofsky_performance_score = factor(karnofsky_performance_score, levels = seq(100, 10, -10)))
+pdgfs_mrna_clinical_list[["GBMLGG"]]$karnofsky_performance_score %>% table(useNA = "ifany")
+
+
+# HNSC
+pdgfs_mrna_clinical_list[["HNSC"]] <- transform(pdgfs_mrna_clinical_list[["HNSC"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["HNSC"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iva" = "Stage IV", 
+                                                                                        "stage ivb" = "Stage IV", 
+                                                                                        "stage ivc" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["HNSC"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["HNSC"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["HNSC"]] <- transform(pdgfs_mrna_clinical_list[["HNSC"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["HNSC"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", "m1" = "M1", 
+                                                                                          "mx" = "mx", "NA" = "NA")})))
+pdgfs_mrna_clinical_list[["HNSC"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["HNSC"]]$pathology_M_stage %>% table
+
+
+pdgfs_mrna_clinical_list[["HNSC"]] <- transform(pdgfs_mrna_clinical_list[["HNSC"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["HNSC"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", "n1" = "N1", "n2" = "N2", 
+                                                                                          "n2a" = "N2", "n2b" = "N2", "n2c" = "N2", 
+                                                                                          "n3" = "N3", "nx" = "nx", "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["HNSC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["HNSC"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["HNSC"]] <- transform(pdgfs_mrna_clinical_list[["HNSC"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["HNSC"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t0" = "T0", 
+                                                                                          "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "t4b" = "T4", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T0", "T1", "T2", "T3", "T4"), 
+                                                                 labels = c(0, 1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["HNSC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["HNSC"]]$Stage_T %>% table
+
+
+# KICH
+pdgfs_mrna_clinical_list[["KICH"]] <- transform(pdgfs_mrna_clinical_list[["KICH"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["KICH"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KICH"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KICH"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["KICH"]] <- transform(pdgfs_mrna_clinical_list[["KICH"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["KICH"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["KICH"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KICH"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["KICH"]] <- transform(pdgfs_mrna_clinical_list[["KICH"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["KICH"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "nx" = "NX")}), 
+                                                                 levels = c("N0", "N1", "N2"), 
+                                                                 labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["KICH"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KICH"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["KICH"]] <- transform(pdgfs_mrna_clinical_list[["KICH"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["KICH"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t4" = "T4")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KICH"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KICH"]]$Stage_T %>% table
+
+
+# KIPAN
+pdgfs_mrna_clinical_list[["KIPAN"]] <- transform(pdgfs_mrna_clinical_list[["KICH"]], 
+                                                 Stage = factor(sapply(pdgfs_mrna_clinical_list[["KICH"]]$pathologic_stage, 
+                                                                FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                         "stage ii" = "Stage II", 
+                                                                                         "stage iii" = "Stage III", 
+                                                                                         "stage iv" = "Stage IV", 
+                                                                                         "NA" = "NA")}), 
+                                                                levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                                labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIPAN"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIPAN"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["KIPAN"]] <- transform(pdgfs_mrna_clinical_list[["KIPAN"]], 
+                                                 Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_M_stage, 
+                                                                  FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                           "m1" = "M1", 
+                                                                                           "mx" = "MX", 
+                                                                                           "NA" = "NA")}), 
+                                                                  levels = c("M0", "M1"), 
+                                                                  labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIPAN"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["KIPAN"]] <- transform(pdgfs_mrna_clinical_list[["KIPAN"]], 
+                                                 Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_N_stage, 
+                                                                  FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                           "n1" = "N1", 
+                                                                                           "n2" = "N2", 
+                                                                                           "nx" = "nx")}), 
+                                                                  levels = c("N0", "N1", "N2"), 
+                                                                  labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIPAN"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["KIPAN"]] <- transform(pdgfs_mrna_clinical_list[["KIPAN"]], 
+                                                 Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_T_stage, 
+                                                                  FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                           "t1a" = "T1", 
+                                                                                           "t1b" = "T1", 
+                                                                                           "t2" = "T2", 
+                                                                                           "t2b" = "T2", 
+                                                                                           "t3" = "T3", 
+                                                                                           "t3a" = "T3", 
+                                                                                           "t3b" = "T3", 
+                                                                                           "t4" = "T4")}), 
+                                                                  levels = c("T1", "T2", "T3", "T4"), 
+                                                                  labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIPAN"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIPAN"]]$Stage_T %>% table
+
+
+# KIRC
+pdgfs_mrna_clinical_list[["KIRC"]] <- transform(pdgfs_mrna_clinical_list[["KIRC"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["KIRC"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIRC"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRC"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRC"]] <- transform(pdgfs_mrna_clinical_list[["KIRC"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["KIRC"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["KIRC"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRC"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRC"]] <- transform(pdgfs_mrna_clinical_list[["KIRC"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["KIRC"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", "nx" = "NX")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["KIRC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRC"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRC"]] <- transform(pdgfs_mrna_clinical_list[["KIRC"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["KIRC"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t3c" = "T3", 
+                                                                                          "t4" = "T4")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIRC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRC"]]$Stage_T %>% table
+
+
+# KIRP
+pdgfs_mrna_clinical_list[["KIRP"]] <- transform(pdgfs_mrna_clinical_list[["KIRP"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["KIRP"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIRP"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRP"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRP"]] <- transform(pdgfs_mrna_clinical_list[["KIRP"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["KIRP"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "mx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["KIRP"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRP"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRP"]] <- transform(pdgfs_mrna_clinical_list[["KIRP"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["KIRP"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2"), 
+                                                                 labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["KIRP"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRP"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["KIRP"]] <- transform(pdgfs_mrna_clinical_list[["KIRP"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["KIRP"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1",
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t3c" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "tx" = "Tx")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["KIRP"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["KIRP"]]$Stage_T %>% table
+
+
+# LAML
+
+
+# LGG
+pdgfs_mrna_clinical_list[["LGG"]] <- transform(pdgfs_mrna_clinical_list[["LGG"]], 
+                                               karnofsky_performance_score = factor(karnofsky_performance_score, levels = seq(100, 10, -10)))
+
+
+# LIHC
+pdgfs_mrna_clinical_list[["LIHC"]] <- transform(pdgfs_mrna_clinical_list[["LIHC"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["LIHC"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "stage iva" = "Stage IV", 
+                                                                                        "stage ivb" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LIHC"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LIHC"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["LIHC"]] <- transform(pdgfs_mrna_clinical_list[["LIHC"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["LIHC"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "mx")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["LIHC"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LIHC"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["LIHC"]] <- transform(pdgfs_mrna_clinical_list[["LIHC"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["LIHC"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["LIHC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LIHC"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["LIHC"]] <- transform(pdgfs_mrna_clinical_list[["LIHC"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["LIHC"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LIHC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LIHC"]]$Stage_T %>% table
+
+
+# LUAD
+pdgfs_mrna_clinical_list[["LUAD"]] <- transform(pdgfs_mrna_clinical_list[["LUAD"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["LUAD"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LUAD"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUAD"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["LUAD"]] <- transform(pdgfs_mrna_clinical_list[["LUAD"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["LUAD"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1",
+                                                                                          "m1a" = "M1", 
+                                                                                          "m1b" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["LUAD"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUAD"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["LUAD"]] <- transform(pdgfs_mrna_clinical_list[["LUAD"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["LUAD"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n3" = "N3", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["LUAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUAD"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["LUAD"]] <- transform(pdgfs_mrna_clinical_list[["LUAD"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["LUAD"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1",
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LUAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUAD"]]$Stage_T %>% table
+
+
+# LUSC
+pdgfs_mrna_clinical_list[["LUSC"]] <- transform(pdgfs_mrna_clinical_list[["LUSC"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["LUSC"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I",
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LUSC"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUSC"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["LUSC"]] <- transform(pdgfs_mrna_clinical_list[["LUSC"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["LUSC"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "m1a" = "M1", 
+                                                                                          "m1b" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}),
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["LUSC"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUSC"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["LUSC"]] <- transform(pdgfs_mrna_clinical_list[["LUSC"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["LUSC"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", "n2" = "N2", 
+                                                                                          "n3" = "N3", "nx" = "NX")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["LUSC"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUSC"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["LUSC"]] <- transform(pdgfs_mrna_clinical_list[["LUSC"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["LUSC"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["LUSC"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["LUSC"]]$Stage_T %>% table
+
+
+# MESO
+pdgfs_mrna_clinical_list[["MESO"]] <- transform(pdgfs_mrna_clinical_list[["MESO"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["MESO"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["MESO"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["MESO"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["MESO"]] <- transform(pdgfs_mrna_clinical_list[["MESO"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["MESO"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "MX")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["MESO"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["MESO"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["MESO"]] <- transform(pdgfs_mrna_clinical_list[["MESO"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["MESO"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n3" = "N3", 
+                                                                                          "nx" = "NX")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["MESO"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["MESO"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["MESO"]] <- transform(pdgfs_mrna_clinical_list[["MESO"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["MESO"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "tx" = "Tx")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["MESO"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["MESO"]]$Stage_T %>% table
+
+
+# OV
+pdgfs_mrna_clinical_list[["OV"]] <- transform(pdgfs_mrna_clinical_list[["MESO"]], 
+                                              karnofsky_performance_score = factor(pdgfs_mrna_clinical_list[["MESO"]]$karnofsky_performance_score, levels = seq(100, 10, -10)))
+
+
+# PAAD
+pdgfs_mrna_clinical_list[["PAAD"]] <- transform(pdgfs_mrna_clinical_list[["PAAD"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["PAAD"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["PAAD"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PAAD"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["PAAD"]] <- transform(pdgfs_mrna_clinical_list[["PAAD"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["PAAD"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "MX")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["PAAD"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PAAD"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["PAAD"]] <- transform(pdgfs_mrna_clinical_list[["PAAD"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["PAAD"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n1b" = "N1", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["PAAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PAAD"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["PAAD"]] <- transform(pdgfs_mrna_clinical_list[["PAAD"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["PAAD"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["PAAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PAAD"]]$Stage_T %>% table
+
+
+# PCPG
+pdgfs_mrna_clinical_list[["PCPG"]] <- transform(pdgfs_mrna_clinical_list[["PCPG"]], 
+                                                karnofsky_performance_score = factor(pdgfs_mrna_clinical_list[["PCPG"]]$karnofsky_performance_score, levels = seq(100, 10, -10)))
+
+
+# PRAD
+pdgfs_mrna_clinical_list[["PRAD"]] <- transform(pdgfs_mrna_clinical_list[["PRAD"]], 
+                                                Stage = factor(sapply(as.character(pdgfs_mrna_clinical_list[["PRAD"]]$gleason_score), 
+                                                               FUN = function(x){switch(x, 
+                                                                                        "2" = "low differentiated", 
+                                                                                        "3" = "low differentiated", 
+                                                                                        "4" = "low differentiated", 
+                                                                                        "5" = "low differentiated", 
+                                                                                        "6" = "median differentiated", 
+                                                                                        "7" = "median differentiated", 
+                                                                                        "8" = "high differentiated", 
+                                                                                        "9" = "high differentiated", 
+                                                                                        "10" = "high differentiated")}), 
+                                                               levels = c("low differentiated", "median differentiated", "high differentiated"), 
+                                                               labels = c(1, 2, 3)))
+pdgfs_mrna_clinical_list[["PRAD"]]$gleason_score %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PRAD"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["PRAD"]] <- transform(pdgfs_mrna_clinical_list[["PRAD"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["PRAD"]]$pathology_N_stage,
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["PRAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PRAD"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["PRAD"]] <- transform(pdgfs_mrna_clinical_list[["PRAD"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["PRAD"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t2c" = "T2", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T2", "T3", "T4"), 
+                                                                 labels = c(2, 3, 4)))
+pdgfs_mrna_clinical_list[["PRAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["PRAD"]]$Stage_T %>% table
+
+
+# READ
+pdgfs_mrna_clinical_list[["READ"]] <- transform(pdgfs_mrna_clinical_list[["READ"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["READ"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iic" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III",
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "stage iva" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["READ"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["READ"]]$Stage %>% table
+
+pdgfs_mrna_clinical_list[["READ"]] <- transform(pdgfs_mrna_clinical_list[["READ"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["READ"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "m1a" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["READ"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["READ"]]$Stage_M %>% table
+
+pdgfs_mrna_clinical_list[["READ"]] <- transform(pdgfs_mrna_clinical_list[["READ"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["READ"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n1a" = "N1", 
+                                                                                          "n1b" = "N1", 
+                                                                                          "n1c" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n2a" = "N2", 
+                                                                                          "n2b" = "N2", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2"), 
+                                                                 labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["READ"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["READ"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["READ"]] <- transform(pdgfs_mrna_clinical_list[["READ"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["READ"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "t4b" = "T4", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["READ"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["READ"]]$Stage_T %>% table
+
+
+# SARC
+
+
+# SKCM
+pdgfs_mrna_clinical_list[["SKCM"]] <- transform(pdgfs_mrna_clinical_list[["SKCM"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["SKCM"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "i/ii nos" = "I/II nos", 
+                                                                                        "stage 0" = "Stage 0", 
+                                                                                        "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iic" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage 0", "Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(0, 1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["SKCM"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["SKCM"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["SKCM"]] <- transform(pdgfs_mrna_clinical_list[["SKCM"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["SKCM"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "m1a" = "M1", 
+                                                                                          "m1b" = "M1", 
+                                                                                          "m1c" = "M1", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["SKCM"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["SKCM"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["SKCM"]] <- transform(pdgfs_mrna_clinical_list[["SKCM"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["SKCM"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n1a" = "N1", 
+                                                                                          "n1b" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n2a" = "N2", 
+                                                                                          "n2b" = "N2", 
+                                                                                          "n2c" = "N2", 
+                                                                                          "n3" = "N3", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["SKCM"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["SKCM"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["SKCM"]] <- transform(pdgfs_mrna_clinical_list[["SKCM"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["SKCM"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t0" = "T0", 
+                                                                                          "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t3a" = "T3", 
+                                                                                          "t3b" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "t4b" = "T4", 
+                                                                                          "tis" = "Tis", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T0", "T1", "T2", "T3", "T4"), 
+                                                                 labels = c(0, 1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["SKCM"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["SKCM"]]$Stage_T %>% table
+
+# STAD
+pdgfs_mrna_clinical_list[["STAD"]] <- transform(pdgfs_mrna_clinical_list[["STAD"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["STAD"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["STAD"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STAD"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["STAD"]] <- transform(pdgfs_mrna_clinical_list[["STAD"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["STAD"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "MX")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["STAD"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STAD"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["STAD"]] <- transform(pdgfs_mrna_clinical_list[["STAD"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["STAD"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n3" = "N3", 
+                                                                                          "n3a" = "N3", 
+                                                                                          "n3b" = "N3",
+                                                                                          "nx" = "NX",
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["STAD"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STAD"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["STAD"]] <- transform(pdgfs_mrna_clinical_list[["STAD"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["STAD"]]$pathology_T_stage,
+                                                                     FUN = function(x){switch(x, "t1" = "T1", 
+                                                                         "t1a" = "T1", 
+                                                                         "t1b" = "T1", 
+                                                                         "t2" = "T2", 
+                                                                         "t2a" = "T2", 
+                                                                         "t2b" = "T2", 
+                                                                         "t3" = "T3", 
+                                                                         "t4" = "T4", 
+                                                                         "t4a" = "T4", 
+                                                                         "t4b" = "T4", 
+                                                                         "tx" = "Tx")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["STAD"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STAD"]]$Stage_T %>% table
+
+
+# STES
+pdgfs_mrna_clinical_list[["STES"]] <- transform(pdgfs_mrna_clinical_list[["STES"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["STES"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "stage iva" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["STES"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STES"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["STES"]] <- transform(pdgfs_mrna_clinical_list[["STES"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["STES"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "m1a" = "M1", 
+                                                                                          "mx" = "MX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["STES"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STES"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["STES"]] <- transform(pdgfs_mrna_clinical_list[["STES"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["STES"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = "N2", 
+                                                                                          "n3" = "N3", 
+                                                                                          "n3a" = "N3", 
+                                                                                          "n3b" = "N3", 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2", "N3"), 
+                                                                 labels = c(0, 1, 2, 3)))
+pdgfs_mrna_clinical_list[["STES"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STES"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["STES"]] <- transform(pdgfs_mrna_clinical_list[["STES"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["STES"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t0" = "T0", 
+                                                                                          "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t2a" = "T2", 
+                                                                                          "t2b" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "t4b" = "T4", 
+                                                                                          "tx" = "Tx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("T0" ,"T1", "T2", "T3", "T4"), 
+                                                                 labels = c(0, 1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["STES"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["STES"]]$Stage_T %>% table
+
+
+# TGCT
+pdgfs_mrna_clinical_list[["TGCT"]] <- transform(pdgfs_mrna_clinical_list[["TGCT"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["TGCT"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "is" = "in situ", 
+                                                                                        "stage i" = "Stage I", 
+                                                                                        "stage ia" = "Stage I", 
+                                                                                        "stage ib" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iia" = "Stage II", 
+                                                                                        "stage iib" = "Stage II", 
+                                                                                        "stage iic" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iiia" = "Stage III", 
+                                                                                        "stage iiib" = "Stage III", 
+                                                                                        "stage iiic" = "Stage III", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["TGCT"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["TGCT"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["TGCT"]] <- transform(pdgfs_mrna_clinical_list[["TGCT"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["TGCT"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "m1a" = "M1", 
+                                                                                          "m1b" = "M1", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["TGCT"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["TGCT"]]$pathology_M_stage %>% table(useNA = "ifany")
+
+
+pdgfs_mrna_clinical_list[["TGCT"]] <- transform(pdgfs_mrna_clinical_list[["TGCT"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["TGCT"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n2" = 'N2', 
+                                                                                          "nx" = "NX", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("N0", "N1", "N2"), 
+                                                                 labels = c(0, 1, 2)))
+pdgfs_mrna_clinical_list[["TGCT"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["TGCT"]]$Stage_N %>% table
+
+
+pdgfs_mrna_clinical_list[["TGCT"]] <- transform(pdgfs_mrna_clinical_list[["TGCT"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["TGCT"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "tx" = "Tx")}), 
+                                                                 levels = c("T1", "T2", "T3"), 
+                                                                 labels = c(1, 2, 3)))
+pdgfs_mrna_clinical_list[["TGCT"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["TGCT"]]$Stage_T %>% table
+
+pdgfs_mrna_clinical_list[["TGCT"]] <- transform(pdgfs_mrna_clinical_list[["TGCT"]], 
+                                                karnofsky_performance_score = factor(pdgfs_mrna_clinical_list[["TGCT"]]$karnofsky_performance_score, levels = seq(100, 10, -10)))
+
+# THCA
+pdgfs_mrna_clinical_list[["THCA"]] <- transform(pdgfs_mrna_clinical_list[["THCA"]], 
+                                                Stage = factor(sapply(pdgfs_mrna_clinical_list[["THCA"]]$pathologic_stage, 
+                                                               FUN = function(x){switch(x, "stage i" = "Stage I", 
+                                                                                        "stage ii" = "Stage II", 
+                                                                                        "stage iii" = "Stage III", 
+                                                                                        "stage iv" = "Stage IV", 
+                                                                                        "stage iva" = "Stage IV", 
+                                                                                        "stage ivc" = "Stage IV", 
+                                                                                        "NA" = "NA")}), 
+                                                               levels = c("Stage I", "Stage II", "Stage III", "Stage IV"), 
+                                                               labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["THCA"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["THCA"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["THCA"]] <- transform(pdgfs_mrna_clinical_list[["THCA"]], 
+                                                Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["THCA"]]$pathology_M_stage, 
+                                                                 FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                          "m1" = "M1", 
+                                                                                          "mx" = "Mx", 
+                                                                                          "NA" = "NA")}), 
+                                                                 levels = c("M0", "M1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["THCA"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["THCA"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["THCA"]] <- transform(pdgfs_mrna_clinical_list[["THCA"]], 
+                                                Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["THCA"]]$pathology_N_stage, 
+                                                                 FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                          "n1" = "N1", 
+                                                                                          "n1a" = "N1", 
+                                                                                          "n1b" = "N1", 
+                                                                                          "nx" = "Nx")}), 
+                                                                 levels = c("N0", "N1"), 
+                                                                 labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["THCA"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["THCA"]]$Stage_N %>% table
+
+pdgfs_mrna_clinical_list[["THCA"]] <- transform(pdgfs_mrna_clinical_list[["THCA"]], 
+                                                Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["THCA"]]$pathology_T_stage, 
+                                                                 FUN = function(x){switch(x, "t1" = "T1", 
+                                                                                          "t1a" = "T1", 
+                                                                                          "t1b" = "T1", 
+                                                                                          "t2" = "T2", 
+                                                                                          "t3" = "T3", 
+                                                                                          "t4" = "T4", 
+                                                                                          "t4a" = "T4", 
+                                                                                          "tx" = "Tx")}), 
+                                                                 levels = c("T1", "T2", "T3", "T4"), 
+                                                                 labels = c(1, 2, 3, 4)))
+pdgfs_mrna_clinical_list[["THCA"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["THCA"]]$Stage_T %>% table
+
+
+# THYM
+
+
+# UCEC
+
+# UCS
+
+# UVM
+pdgfs_mrna_clinical_list[["UVM"]] <- transform(pdgfs_mrna_clinical_list[["UVM"]], 
+                                               Stage = factor(sapply(pdgfs_mrna_clinical_list[["UVM"]]$pathologic_stage, 
+                                                              FUN = function(x){switch(x, "stage iia" = "Stage II", 
+                                                                                       "stage iib" = "Stage II", 
+                                                                                       "stage iiia" = "Stage III", 
+                                                                                       "stage iiib" = "Stage III", 
+                                                                                       "stage iiic" = "Stage III", 
+                                                                                       "stage iv" = "Stage IV", 
+                                                                                       "NA" = "NA")}), 
+                                                              levels = c("Stage II", "Stage III", "Stage IV"), 
+                                                              labels = c(2, 3, 4)))
+pdgfs_mrna_clinical_list[["UVM"]]$pathologic_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["UVM"]]$Stage %>% table
+
+
+pdgfs_mrna_clinical_list[["UVM"]] <- transform(pdgfs_mrna_clinical_list[["UVM"]], 
+                                               Stage_M = factor(sapply(pdgfs_mrna_clinical_list[["UVM"]]$pathology_M_stage, 
+                                                                FUN = function(x){switch(x, "m0" = "M0", 
+                                                                                         "m1" = "M1", 
+                                                                                         "m1b" = "M1", 
+                                                                                         "mx" = "Mx", 
+                                                                                         "NA" = "NA")}), 
+                                                                levels = c("M0", "M1"), 
+                                                                labels = c(0, 1)))
+pdgfs_mrna_clinical_list[["UVM"]]$pathology_M_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["UVM"]]$Stage_M %>% table
+
+
+pdgfs_mrna_clinical_list[["UVM"]] <- transform(pdgfs_mrna_clinical_list[["UVM"]], 
+                                               Stage_N = factor(sapply(pdgfs_mrna_clinical_list[["UVM"]]$pathology_N_stage, 
+                                                                FUN = function(x){switch(x, "n0" = "N0", 
+                                                                                         "nx" = "Nx", 
+                                                                                         "NA" = "NA")}), 
+                                                                levels = c("N0"), 
+                                                                labels = c(0)))
+pdgfs_mrna_clinical_list[["UVM"]]$pathology_N_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["UVM"]]$Stage_N %>% table()
+
+pdgfs_mrna_clinical_list[["UVM"]] <- transform(pdgfs_mrna_clinical_list[["UVM"]], 
+                                               Stage_T = factor(sapply(pdgfs_mrna_clinical_list[["UVM"]]$pathology_T_stage, 
+                                                                FUN = function(x){switch(x, "t2a" = "T2", 
+                                                                                         "t2b" = "T2", 
+                                                                                         "t3" = "T3", 
+                                                                                         "t3a" = "T3", 
+                                                                                         "t3b" = "T3", 
+                                                                                         "t3c" = "T3", 
+                                                                                         "t4a" = "T4", 
+                                                                                         "t4a" = "T4", 
+                                                                                         "t4b" = "T4", 
+                                                                                         "t4c" = "T4", 
+                                                                                         "t4d" = "T4", 
+                                                                                         "t4e" = "T4")}), 
+                                                                levels = c("T2", "T3", "T4"), 
+                                                                labels = c(2, 3, 4)))
+pdgfs_mrna_clinical_list[["UVM"]]$pathology_T_stage %>% table(useNA = "ifany");pdgfs_mrna_clinical_list[["UVM"]]$Stage_T %>% table
+
+saveRDS(pdgfs_mrna_clinical_list, "../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+```
+
+
+# corelation analysis
+```{r}
+library(ggplot2)
+library(minerva) # mine
+
+pdgfs_mrna_clinical_list <- readRDS("../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+
+stage_index <- sapply(pdgfs_mrna_clinical_list, FUN = function(df){
+    col_names <- colnames(df)
+    any(col_names %in% c("Stage"))
+})
+has_stage_projects <- names(pdgfs_mrna_clinical_list)[stage_index]
+```
+
+
+```{r}
+for(name in names(pdgfs_mrna_clinical_list)){
+    pdgfs_mrna_clinical_list[[name]] <- split(pdgfs_mrna_clinical_list[[name]], f = pdgfs_mrna_clinical_list[[name]]$gene)
+}
+pdgfs_mrna_clinical_list[["ACC"]]
+
+saveRDS(pdgfs_mrna_clinical_list, file = "../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+```
+
+
+```{r}
+pdgfs_mrna_clinical_list <- readRDS("../../../data/Firehose/pdgfs_mrna_clinical_list.rds")
+
+# mic correlation
+mine_cor <- function(path, ncores = 4, ...){
+    require(dplyr)
+    cor_list <- vector(mode = "list")
+    
+    # an list in list object
+    pdgfs_mrna_clinical_list <- readRDS(file = path)
+    
+    for(project in has_stage_projects){
+        project_list <- pdgfs_mrna_clinical_list[[project]]
+        
+        for(gene in names(project_list)){
+            df <- project_list[[gene]]
+            df <- df %>% dplyr::select(expression_log2, contains("Stage", ignore.case = F))
+            
+            # discard rows contain NAs
+            na_index <- (df %>% is.na %>% rowSums) > 0
+            df <- df[!na_index, ]
+            df <- data.matrix(df)
+            
+            # mine correlation between expression and pathologic stage
+            mic <- mine(df, master = 1, n.cores = ncores)$MIC
+            mic <- as.data.frame(mic)
+            
+            # store mine information into the cor_list
+            cor_list[[project]][[gene]] <- mic
+            cor_list[[project]][[gene]]$gene <- gene
+        }
+    }
+    return(cor_list)
+}
+
+mic_cors <- mine_cor("../../../data/Firehose/pdgfs_mrna_clinical_list.rds", 
+                 ncores = 12)
+
+mic_cors %>% length
+
+library(purrr)
+library(tibble)
+
+for(name in names(mic_cors)){
+    for(gene in names(mic_cors[[name]])){
+        mic_cors[[name]][[gene]] <- mic_cors[[name]][[gene]] %>% rownames_to_column("stage")
+    }
+    mic_cors[[name]] <- map_dfr(mic_cors[[name]], .f = bind_rows)
+}
+mic_cors[1]
+
+saveRDS(mic_cors, "../../../data/Firehose/mic_cors.rds")
+
+mic_cors[[1]]
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

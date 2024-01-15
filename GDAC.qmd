@@ -1,0 +1,112 @@
+---
+title: "GDAC"
+author: "YinCY"
+format: html
+editor: source
+---
+
+
+```{r}
+library(FirebrowseR)
+library(org.Hs.eg.db)
+library(magrittr)
+
+cohorts <- c('ACC','BLCA','BRCA','CESC','CHOL',
+             'COAD','COADREAD','DLBC','ESCA',
+             'GBM','GBMLGG','HNSC','KICH','KIPAN',
+             'KIRC','KIRP','LAML','LGG','LIHC',
+             'LUAD','LUSC','MESO','OV','PAAD',
+             'PCPG','PRAD','READ','SARC','SKCM',
+             'STAD','STES','TGCT','THCA','THYM',
+             'UCEC','UCS','UVM')
+
+org.Hs.eg.db %>% columns()
+genes <- keys(org.Hs.eg.db)
+genes_df <- select(org.Hs.eg.db, 
+                   keys = genes, 
+                   keytype = "ENTREZID", 
+                   columns = c("ENTREZID", "SYMBOL", "ENSEMBL"))
+
+growth_factors <- gene_df[grepl("growth factor", gene_df$GENENAME, ignore.case = T), ]
+growth_factors <- growth_factors[!grepl("pseudogene", growth_factors$GENENAME, ignore.case = T), ]
+growth_factors <- growth_factors[!grepl("growth factor receptor", growth_factors$GENENAME, ignore.case = T), ]
+
+
+gene_list <- strsplit(genes_df$SYMBOL[1:100], split = seq(10, 90, 10), fixed = T)
+genes_df <- genes_df %>% dplyr::filter(!is.na(SYMBOL))
+all_genes_expression_list <- vector(mode = "list")
+
+
+index_list <- vector(mode = "list", length = length(genes_df$SYMBOL) %/% 10 + 1)
+names(index_list) <- seq(1, length(genes_df$SYMBOL), 10)
+
+for(i in names(index_list)){
+  index_list[[i]] <- seq(as.numeric(i), as.numeric(i) + 9)
+}
+index_list[[15090]] <- index_list[[15090]][1:4]
+
+
+gene_list <- vector(mode = "list", length = length(index_list))
+for(i in seq_len(length(gene_list))){
+  gene_list[[i]] <- genes_df$SYMBOL[index_list[[i]]]
+}
+```
+
+
+```{r}
+    for(cohort in cohorts){
+        if(cohort %in% names(all_genes_expression_list)){
+            print(paste0(cohort, " has been downloaded..."))
+            next
+        }
+        
+        flag = TRUE
+        page = 1
+        page_size = 2000
+        current <- vector(mode = "list")
+        
+        while(flag){
+            current[[page]] <- try(Samples.mRNASeq(format = "csv",
+                                           page = page, 
+                                           page_size = page_size,
+                                           gene = gene_list[[i]], 
+                                           cohort = cohort), 
+                                   silent = T)
+            if(class(current[[page]]) == "try-error"){
+                print(paste0(cohort, " downloading failed..."))
+                break
+            }
+            
+            current[[page]] <- as.matrix(current[[page]])
+            if(nrow(current[[page]]) < page_size){
+                flag = FALSE
+            }
+            page = page + 1
+        }
+        
+        project <- do.call(rbind, current)
+        all_genes_expression_list[[cohort]] <- as.data.frame(project)
+    }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
