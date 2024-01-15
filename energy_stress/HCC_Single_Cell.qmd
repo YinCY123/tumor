@@ -1,0 +1,312 @@
+---
+title: "HCC_Single_Cell"
+author: "YinCY"
+format: html
+editor: source
+---
+
+# HCC
+```{r}
+#| message: false
+library(SingleCellExperiment)
+library(fs)
+library(R.utils)
+library(stringr)
+library(stringr.plus)
+library(DropletUtils)
+```
+
+### GSE125449
+```{r}
+# move and rename files
+dir_create(path = paste("hcc/GSE125449/", c("set1", "set2"), sep = ""))
+files <- dir_ls("hcc/GSE125449/", regexp = "samples", invert = T, type = "file")
+
+dirs <- paste(dirname(files), rep(c("set1", "set2"), each = 3), sep = "/")
+new_names <- paste(dirs, str_extract(basename(files), "barcodes.tsv.gz|genes.tsv.gz|matrix.mtx.gz"), sep = "/")
+files; new_names
+fs::file_move(path = files, new_path = new_names)
+```
+
+```{r}
+sample_info_set1 <- read.table("hcc/GSE125449/GSE125449_Set1_samples.txt.gz", 
+                               sep = "\t", 
+                               header = T, 
+                               row.names = 2)
+sample_info_set2 <- read.table("hcc/GSE125449/GSE125449_Set2_samples.txt.gz", 
+                               sep = "\t", 
+                               header = T, 
+                               row.names = 2)
+
+sample_info_set1 %>% dim; sample_info_set2 %>% dim
+```
+
+```{r}
+samples <- dir_ls("hcc/GSE125449/", type = "directory", recurse = T)
+sample_names <- basename(samples) %>% unique()
+sces_list <- vector(mode = "list")
+for(i in seq_along(samples)){
+  sces_list[i] <- read10xCounts(samples = samples[i], 
+                       sample.names = sample_names[i], 
+                       col.names = T)
+}
+
+sces_list
+sces <- Reduce(combineCols, sces_list)
+
+sample_info_set1 %>% head; sample_info_set2 %>% head
+sample_info <- rbind(sample_info_set1, sample_info_set2)
+cell_types <- setNames(sample_info$Type, rownames(sample_info))
+colData(sces)$cell_type <- cell_types[colnames(sces)]
+colData(sces)
+
+saveRDS(sces, "hcc/GSE125449.rds")
+```
+
+### GSE189175
+```{r}
+files <- dir_ls("hcc/GSE189175/", regexp = "meta", invert = T)
+dir_create(paste("hcc/GSE189175/", "data", sep = ""))
+
+# move and rename files
+new_files <- paste(dirname(files), "data", str_extract(basename(files), "barcodes.tsv.gz|features.tsv.gz|matrix.mtx.gz"), sep = "/")
+files;new_files
+fs::file_move(files, new_files)
+
+# cell meta info
+cell_info <- read.table("../../data/zhuyi/tumor/hcc/GSE189175/GSE189175_meta_data.tsv.gz", sep = "\t", header = T, row.names = 1)
+cell_info %>% dim
+cell_info %>% dplyr::pull(SampleID) %>% table
+
+
+library(Matrix)
+mtx <- readMM("hcc/GSE189175/data/matrix.mtx.gz")
+genes <- read.table("hcc/GSE189175/data/features.tsv.gz", sep = "\t") %>% 
+  magrittr::set_colnames(c("id", "symbol"))
+barcodes <- read.table("hcc/GSE189175/data/barcodes.tsv.gz", sep = "\t")
+
+mtx %>% dim; genes %>% dim; barcodes %>% dim
+
+genes %>% apply(., 2, is.na) %>% apply(2, table)
+idx <- grep("^ENSG", genes$id, invert = TRUE)
+mtx <- mtx[-idx, ]
+genes <- genes[-idx, ]
+rownames(genes) <- genes$id
+
+rownames(mtx) <- genes$id
+colnames(mtx) <- barcodes$V1
+
+library(stringr.plus)
+str_extract_before(barcodes$V1, ";") %>% table
+
+sce <- SingleCellExperiment(assays = list(counts = mtx), 
+                            rowData = genes, 
+                            colData = cell_info)
+sce
+sce %>% colData()
+sce %>% rowData()
+saveRDS(sce, "hcc/GSE189175.rds")
+```
+
+### GSE210679
+```{r}
+dir_create("hcc/GSE210679/data")
+untar("hcc/GSE210679/GSE210679_RAW.tar", exdir = "hcc/GSE210679/data/")
+files <- dir_ls("hcc/GSE210679/data/")
+
+sample_dir <- dir_create(paste("hcc/GSE210679/data/", c("sc", "sn"), sep = ""))
+for(i in seq_along(sample_dir)){untar(files[i], exdir = sample_dir[i])}
+```
+
+```{r}
+sample_names <- c("single cell", "single nucleus")
+sces <- read10xCounts(samples = sample_dir, 
+                      sample.names = sample_names, 
+                      col.names = TRUE)
+sces
+sces %>% colData
+sces %>% rowData
+saveRDS(sces, "hcc/GSE210679.rds")
+```
+
+# analysis
+```{r}
+#| message: false
+#| warning: false
+# GSE210679 as data and GSE125449 as reference
+
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(bluster)
+library(magrittr)
+library(BiocParallel)
+library(batchelor)
+```
+
+```{r}
+sces <- readRDS("../../data/zhuyi/tumor/hcc/GSE210679.rds")
+sces
+sces %>% colData()
+rowData(sces)$Type <- NULL
+sces %>% rowData()
+
+sces$Sample %>% table
+```
+
+```{r}
+# qc 
+# cell
+is_mito <- grepl("^MT-", rowData(sces)$Symbol)
+is_mito %>% table
+rowData(sces)$Symbol[is_mito]
+
+stats <- perCellQCMetrics(sces, subsets = list(mito = is_mito))
+qc_sum <- isOutlier(stats$sum, log = TRUE, type = "lower", batch = sces$Sample)
+qc_sum %>% table
+
+qc_detected <- isOutlier(stats$detected, log = TRUE, type = "lower", batch = sces$Sample)
+qc_detected %>% table
+
+qc_mito <- isOutlier(stats$subsets_mito_percent, log = TRUE, type = "higher", batch = sces$Sample)
+qc_mito %>% table
+
+qc <- qc_sum | qc_detected | qc_mito
+sces <- sces[, !qc]
+
+# feature
+stats <- perFeatureQCMetrics(x = sces)
+qc <- stats$detected > 0.05
+qc %>% table
+
+sces <- sces[qc, ]
+sces
+```
+
+```{r}
+set.seed(101)
+qclusters <- quickCluster(x = sces, 
+                          method = "igraph", 
+                          use.rank = TRUE, 
+                          block = sces$Sample, 
+                          BPPARAM = MulticoreParam(12))
+qclusters %>% table
+
+sces <- computePooledFactors(x = sces, 
+                             clusters = qclusters, 
+                             BPPARAM = MulticoreParam(12))
+sces <- logNormCounts(sces)
+dec <- modelGeneVar(sces, block = sces$Sample)
+dec[order(dec$bio, decreasing = TRUE), ]
+hvgs <- getTopHVGs(dec, var.threshold = 0)
+hvgs %>% str
+```
+
+```{r}
+set.seed(101)
+cur <- sces
+cur <- fastMNN(cur, 
+               k = 20, 
+               batch = cur$Sample, 
+               auto.merge = TRUE, 
+               subset.row = hvgs, 
+               correct.all = TRUE, 
+               BPPARAM = MulticoreParam(12))
+reducedDim(sces, "corrected") <- reducedDim(cur, "corrected")
+assay(sces, "reconstructed") <- assay(cur, "reconstructed")
+
+rm(cur); gc()
+```
+
+```{r}
+set.seed(101)
+sces <- runTSNE(sces, dimred = "corrected")
+
+set.seed(101)
+clusters <- clusterRows(reducedDim(sces, "corrected"), 
+                        BLUSPARAM = NNGraphParam(BPPARAM = MulticoreParam(12)))
+clusters %>% table
+colData(sces)$clusters <- factor(clusters)
+saveRDS(sces, "../../data/zhuyi/tumor/res/hcc/GSE210679.rds")
+```
+
+
+# reference
+```{r}
+#| message: false
+#| warning: false
+
+library(SingleCellExperiment)
+library(scran)
+library(scater)
+library(bluster)
+library(magrittr)
+library(BiocParallel)
+
+sces_ref <- readRDS("../../data/zhuyi/tumor/hcc/GSE125449.rds")
+sces_ref %>% colData
+sces_ref %>% rowData
+```
+
+```{r}
+stats <- perFeatureQCMetrics(sces_ref)
+qc <- stats$detected <= 0 | is.na(stats$detected)
+qc %>% table
+sces_ref <- sces_ref[!qc, ]
+
+is_mito <- grepl("^MT-", rowData(sces_ref)$Symbol)
+is_mito %>% table
+rowData(sces_ref)$Symbol[is_mito]
+stats <- perCellQCMetrics(sces_ref, subsets = list(mito = is_mito))
+qc <- perCellQCFilters(stats, sub.fields = "subsets_mito_percent")
+qc %>% as.data.frame() %>% apply(2, sum)
+
+qcluster <- quickCluster(sces_ref, 
+                         use.rank = TRUE, 
+                         block = sces_ref$Sample, 
+                         method = "igraph", 
+                         BPPARAM = MulticoreParam(12))
+qcluster %>% table
+sces_ref <- computePooledFactors(sces_ref, clusters = qcluster)
+sces_ref <- logNormCounts(sces_ref)
+dec <- modelGeneVar(sces_ref, block = sces_ref$Sample)
+dec[order(dec$bio, decreasing = TRUE), ]
+hvgs <- getTopHVGs(dec, var.threshold = 0)
+hvgs %>% str
+```
+
+```{r}
+set.seed(101)
+cur <- sces_ref
+cur <- fastMNN(cur, 
+               batch = sces_ref$Sample, 
+               auto.merge = TRUE, 
+               subset.row = hvgs, 
+               correct.all = TRUE, 
+               BPPARAM = MulticoreParam(12))
+reducedDim(sces_ref, "corrected") <- reducedDim(cur, "corrected")
+assay(sces_ref, "reconstructed") <- assay(cur, "reconstructed")
+
+rm(cur); gc()
+```
+
+```{r}
+set.seed(101)
+sces_ref <- runTSNE(sces_ref, dimred = "corrected")
+saveRDS(sces_ref, "../../data/zhuyi/tumor/hcc/processed_GSE125449.rds")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
