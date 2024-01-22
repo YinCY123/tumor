@@ -297,8 +297,28 @@ saveRDS(sces_ref, "../../data/zhuyi/tumor/hcc/processed_GSE125449.rds")
 ```
 
 
+# annotation
+```{r}
+#| message: false
+#| warning: false
 
+library(SingleCellExperiment)
+# library(SingleR)
+library(singleCellNet)
+```
 
+```{r}
+sces <- readRDS("../../data/zhuyi/tumor/hcc/processed_GSE210679.rds")
+sces_ref <- readRDS("../../data/zhuyi/tumor/hcc/processed_GSE125449.rds")
+```
+
+```{r}
+pred_label <- SingleR(test = sces, 
+                      ref = sces_ref, 
+                      labels = sces_ref$cell_type, 
+                      clusters = sces$clusters)
+
+```
 
 
 

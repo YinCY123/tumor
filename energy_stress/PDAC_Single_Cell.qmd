@@ -14,13 +14,18 @@ library(fs)
 library(DropletUtils)
 library(magrittr)
 
-samples <- dir_ls("pdac/GSE155698/", regexp = "_TISSUE_")
-for(i in samples) {untar(tarfile = i, exdir = "pdac/GSE155698/files/")}
-sample_dirs <- dir_ls("pdac/GSE155698/files/", recurse = TRUE, regexp = "TISSUE_14", invert = T)
+untar(tarfile = "../../data/zhuyi/tumor/pdac/GSE155698/GSE155698_RAW.tar", 
+      exdir = "../../data/zhuyi/tumor/pdac/GSE155698/")
+
+samples <- dir_ls("../../data/zhuyi/tumor/pdac/GSE155698/", regexp = "PDAC_TISSUE_")
+dir_create("../../data/zhuyi/tumor/pdac/GSE155698/samples")
+for(i in samples) {untar(tarfile = i, exdir = "../../data/zhuyi/tumor/pdac/GSE155698/samples/")}
+sample_dirs <- dir_ls("../../data/zhuyi/tumor/pdac/GSE155698/samples/", recurse = TRUE, regexp = "TISSUE_14", invert = T)
 fs::file_delete(grep("h5$", sample_dirs, value = T))
-sample_dirs <- dir_ls("pdac/GSE155698/files/", recurse = TRUE, regexp = "TISSUE_14", invert = T)
-sample_dirs <- sample_dirs[seq(2, length(sample_dirs), 5)]
-sample_names <- strsplit(sample_dirs, split = "/") %>% sapply(., "[[", 4) %>% unname()
+
+sample_dirs <- dir_ls("../../data/zhuyi/tumor/pdac/GSE155698/samples/", recurse = TRUE, invert = T)
+sample_dirs <- grep("filtered_feature_bc_matrix$", sample_dirs, value = TRUE)
+sample_names <- strsplit(sample_dirs, split = "/") %>% sapply(., "[[", 9) %>% unname()
 
 # not all rowdata in the same format
 sce_list <- vector(mode = "list")
@@ -33,28 +38,24 @@ for(i in seq_along(sample_names)){
 sce_list %>% length
 sce_list %>% names
 
-rdata <- vector(mode = "list")
-for(i in seq_along(sample_names)){
-  rdata[sample_names[i]] <- rowData(sce_list[[i]])
-}
-
-rdata %>% sapply(., ncol) %>% table
-rdata %>% sapply(., ncol) %>% which.min
-sce_list[[8]] %>% rowData()
+# dignosis of the previous error
+# rdata <- vector(mode = "list")
+# for(i in seq_along(sample_names)){
+#   rdata[sample_names[i]] <- rowData(sce_list[[i]])
+# }
+# 
+# rdata %>% sapply(., ncol) %>% table
+# rdata %>% sapply(., ncol) %>% which.min
+# sce_list[[8]] %>% rowData()
 
 for(i in seq_along(sce_list)){rowData(sce_list[[i]]) <- rowData(sce_list[[i]])[, 1:2]}
-
-source("/home/yincy/git/mouse-kidney/functions/harmoniseSCE.R")
-sce_list <- harmonizeSCE(sce_list, method = "fastMNN")
-
 Reduce(intersect, lapply(sce_list, rownames)) %>% length
 
 sces <- Reduce(combineCols, sce_list)
 sces %>% rowData()
 sces %>% colData
-sces$Sample %>% table %>% head
-colData(sces)
-saveRDS(sces, "pdac/GSE155698.rds")
+sces$Sample %>% table
+saveRDS(sces, "../../data/zhuyi/tumor/pdac/GSE155698.rds")
 ```
 
 ### GSE156405
@@ -80,38 +81,38 @@ saveRDS(sces, "pdac/GSE156405.rds")
 ```{r}
 library(R.utils)
 library(stringr)
-untar("pdac/GSE205013/GSE205013_RAW.tar", exdir = "pdac/GSE205013/files/")
-files <- dir_ls("pdac/GSE205013/files/", recurse = F, type = "file")
+library(fs)
+library(stringr.plus)
+library(DropletUtils)
 
-# create directories
-base_name <- dirname(files) %>% unique
-file_dir_names <- paste0(base_name, c(paste0("/P0", 1:9), paste0("/P", 10:27)))
-dir_create(path = file_dir_names)
+dir_create("../../data/zhuyi/tumor/pdac/GSE205013/files")
+untar("../../data/zhuyi/tumor/pdac/GSE205013/GSE205013_RAW.tar", 
+      exdir = "../../data/zhuyi/tumor/pdac/GSE205013/files/")
+files <- dir_ls("../../data/zhuyi/tumor/pdac/GSE205013/files/", type = "file")
+base_dir <- dirname(files)
+samples <- str_extract_between(basename(files), pattern1 = "_", pattern2 = "_")
+new_base_dir <- paste(gsub("files", "", base_dir), samples, sep = "")
+
+dir_create(new_base_dir)
+
+file_names <- basename(files)
+new_file_names <- paste(new_base_dir, str_extract_after(file_names, "_", which = "last"), sep = "/")
 
 # move files into corresponding directories
-file_names <- basename(files)
-new_paths <- paste(rep(file_dir_names, each = 3), file_names, sep = "/")
-file_move(path = files, new_path = new_paths)
-
-# rename file names
-all_files <- dir_ls("pdac/GSE205013/files/", type = "file", recurse = T)
-base_dirs <- dirname(all_files)
-new_file_names <- str_extract(basename(all_files), pattern = "barcodes.tsv.gz|features.tsv.gz|matrix.mtx.gz")
-new_dirs <- paste(base_dirs, new_file_names, sep = "/")
-fs::file_move(all_files, new_dirs)
+file_move(path = files, new_path = new_file_names)
 
 # read samples into SingleCellExperiment object
-samples <- dir_ls("pdac/GSE205013/files/", type = "directory")
+samples <- dir_ls("../../data/zhuyi/tumor/pdac/GSE205013/", type = "directory", regexp = "P")
 sample_names <- basename(samples)
 
 sces <- read10xCounts(samples = samples, 
                       sample.names = sample_names, 
                       col.names = TRUE)
 sces
+rowData(sces)$Type <- NULL
 sces %>% rowData()
 sces %>% colData()
-sces %>% colnames() %>% str
-saveRDS(sces, "pdac/GSE205013.rds")
+saveRDS(sces, "../../data/zhuyi/tumor/pdac/GSE205013.rds")
 ```
 
 
