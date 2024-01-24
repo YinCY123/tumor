@@ -19,8 +19,8 @@ library(DropletUtils)
 ### GSE125449
 ```{r}
 # move and rename files
-dir_create(path = paste("hcc/GSE125449/", c("set1", "set2"), sep = ""))
-files <- dir_ls("hcc/GSE125449/", regexp = "samples", invert = T, type = "file")
+dir_create(path = paste("../../data/zhuyi/tumor/hcc/GSE125449/", c("set1", "set2"), sep = ""))
+files <- dir_ls("../../data/zhuyi/tumor/hcc/GSE125449/", regexp = "samples", invert = T, type = "file")
 
 dirs <- paste(dirname(files), rep(c("set1", "set2"), each = 3), sep = "/")
 new_names <- paste(dirs, str_extract(basename(files), "barcodes.tsv.gz|genes.tsv.gz|matrix.mtx.gz"), sep = "/")
@@ -65,8 +65,8 @@ saveRDS(sces, "hcc/GSE125449.rds")
 
 ### GSE189175
 ```{r}
-files <- dir_ls("hcc/GSE189175/", regexp = "meta", invert = T)
-dir_create(paste("hcc/GSE189175/", "data", sep = ""))
+files <- dir_ls("../../data/zhuyi/tumor/hcc/GSE189175/", regexp = "meta", invert = T)
+dir_create(paste("../../data/zhuyi/tumor/hcc/GSE189175/", "data", sep = ""))
 
 # move and rename files
 new_files <- paste(dirname(files), "data", str_extract(basename(files), "barcodes.tsv.gz|features.tsv.gz|matrix.mtx.gz"), sep = "/")

@@ -8,6 +8,7 @@ editor: source
 # BRCA
 ```{r}
 #| message: false
+#| warning: false
 
 library(SingleCellExperiment)
 library(fs)
@@ -21,6 +22,8 @@ library(DropletUtils)
 
 ### GSE114724
 ```{r}
+untar("/home/yincy/git/data/zhuyi/tumor/brca/GSE114724/GSE114724_RAW.tar", 
+      exdir = "/home/yincy/git/data/zhuyi/tumor/brca/GSE114724/")
 
 ```
 
@@ -81,6 +84,7 @@ saveRDS(GSE148673, "/home/yincy/git/data/zhuyi/tumor/brca/GSE148673.rds")
 ```
 
 # GSE176078
+has meta data
 ```{r}
 untar("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/GSE176078_RAW.tar", 
       exdir = "/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/")
@@ -103,10 +107,40 @@ GSE176078 <- read10xCounts(samples = samples,
                            sample.names = sample_names, 
                            col.names = TRUE)
 
-GSE176078 %>% colData
-GSE176078 %>% rowData
+sample_info_files <- dir_ls("/home/yincy/git/data/zhuyi/tumor/brca/GSE176078/", 
+                            recurse = T, 
+                            regexp = "metadata", 
+                            type = "file") %>% as.character()
+names(sample_info_files) <- strsplit(sample_info_files, split = "/") %>% sapply("[[", 10) %>% unname()
+sample_info_list <- vector(mode = "list", length = length(sample_info_files))
+names(sample_info_list) <- strsplit(sample_info_files, split = "/") %>% sapply("[[", 10)
+for(name in names(sample_info_files)){
+  sample_info_list[[name]] <- read.csv(file = sample_info_files[[name]], 
+                                       header = TRUE, 
+                                       row.names = 1)
+}
+
+sample_info_df <- Reduce(rbind, sample_info_list)
+sample_info_df <- sample_info_df %>% tibble::rownames_to_column("barcode") %>% dplyr::rename(Sample = "orig.ident")
+
+colnames(GSE176078) <- str_extract_after(colnames(GSE176078), "_") 
+
+colData(GSE176078) <- dplyr::left_join(colData(GSE176078) %>% as.data.frame(), sample_info_df, by = c("Barcode" = "barcode")) %>%
+  tibble::column_to_rownames("Barcode") %>% DataFrame()
+
+colData(GSE176078)$Sample.y <- NULL
+colData(GSE176078)$Sample <- colData(GSE176078)$Sample.x
+colData(GSE176078)$Sample.x <- NULL
+
+rowData(GSE176078)$ensembl <- mapIds(EnsDb.Hsapiens.v86, keys = rowData(GSE176078)$ID, keytype = "SYMBOL", column = "GENEID")
+GSE176078 <- GSE176078[!is.na(rowData(GSE176078)$ensembl), ]
+rowData(GSE176078)$ensembl %>% duplicated %>% table
+rownames(GSE176078) <- rowData(GSE176078)$ensembl
+GSE176078 %>% rowData()
+
 saveRDS(GSE176078, "/home/yincy/git/data/zhuyi/tumor/brca/GSE176078.rds")
 ```
+
 
 
 
