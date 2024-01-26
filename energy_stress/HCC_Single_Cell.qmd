@@ -8,6 +8,8 @@ editor: source
 # HCC
 ```{r}
 #| message: false
+#| warning: false
+
 library(SingleCellExperiment)
 library(fs)
 library(R.utils)
@@ -230,7 +232,6 @@ colData(sces)$clusters <- factor(clusters)
 saveRDS(sces, "../../data/zhuyi/tumor/res/hcc/GSE210679.rds")
 ```
 
-
 # reference
 ```{r}
 #| message: false
@@ -296,15 +297,14 @@ sces_ref <- runTSNE(sces_ref, dimred = "corrected")
 saveRDS(sces_ref, "../../data/zhuyi/tumor/hcc/processed_GSE125449.rds")
 ```
 
-
 # annotation
 ```{r}
 #| message: false
 #| warning: false
 
 library(SingleCellExperiment)
-# library(SingleR)
-library(singleCellNet)
+library(SingleR)
+# library(singleCellNet)
 ```
 
 ```{r}
@@ -317,7 +317,6 @@ pred_label <- SingleR(test = sces,
                       ref = sces_ref, 
                       labels = sces_ref$cell_type, 
                       clusters = sces$clusters)
-
 ```
 
 
