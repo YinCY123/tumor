@@ -304,6 +304,13 @@ saveRDS(sces_ref, "../../data/zhuyi/tumor/hcc/processed_GSE125449.rds")
 
 library(SingleCellExperiment)
 library(SingleR)
+library(magrittr)
+library(scuttle)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(patchwork)
+library(scater)
 # library(singleCellNet)
 ```
 
@@ -317,8 +324,44 @@ pred_label <- SingleR(test = sces,
                       ref = sces_ref, 
                       labels = sces_ref$cell_type, 
                       clusters = sces$clusters)
+pred_label$pruned.labels %>% table(useNA = "ifany")
+colData(sces)$cell_type <- setNames(pred_label$pruned.labels, rownames(pred_label))[sces$clusters]
+sces %>% colData
+sces$cell_type %>% table(useNA = "ifany")
+sces <- sces[, !is.na(sces$cell_type)]
 ```
 
+# energy stress
+```{r}
+energy_stress_genes <- readRDS("../../data/zhuyi/tumor/top15_up_genes.rds")
+
+data.frame(ensembl = energy_stress_genes,
+           symbol = mapIds(EnsDb.Hsapiens.v86, keys = energy_stress_genes, keytype = "GENEID", column = "SYMBOL"), 
+           in_HCC = energy_stress_genes %in% rownames(sces)) %>% tibble::remove_rownames() %>% 
+  knitr::kable()
+
+source("/home/yincy/git/bior/functions/plotSum.R")
+
+plotSums(sces = sces, features = energy_stress_genes) 
+ggsave("/home/yincy/git/data/zhuyi/tumor/res/hcc/HCC_energy_stress.png", width = 9)
+```
+
+```{r}
+df %>% 
+  ggplot(aes(TSNE.1, TSNE.2)) +
+  geom_point(aes(color = cell_type), size = 0.5) +
+  geom_text(data = cell_locations, aes(x, y, label = cell_type)) +
+  guides(color = guide_legend(override.aes = list(size = 3, alpha = 1))) +
+  scale_color_discrete(name = "cell type")
+ggsave("/home/yincy/git/data/zhuyi/tumor/res/hcc/HCC_cell_type.png", width = 9)
+
+df %>% 
+  ggplot(aes(TSNE.1, TSNE.2)) +
+  geom_point(aes(color = Sample), size = 0.5, alpha = 1/3) +
+  geom_text(data = cell_locations, aes(x, y, label = cell_type)) +
+  guides(color = guide_legend(override.aes = list(size = 3, alpha = 1)))
+ggsave("/home/yincy/git/data/zhuyi/tumor/res/hcc/HCC_sample.png", width = 9)
+```
 
 
 
