@@ -1,0 +1,58 @@
+---
+title: "medulloblastoma"
+format: docx
+bibliography: medulloblastoma_reference.bib
+csl: /home/yincy/git/github/styles/nature.csl
+editor: source
+---
+
+# 摘要
+
+
+
+# Abstract
+Medulloblastoma (MB), a highly malignant tumor commonly found in youngsters, unfortunately, results in a mortality rate of around thirty percent. Consequently, there is a critical need to enhance the prognosis of MB by formulating novel treatment strategies. Given that cancer cells demand a substantial energy supply to sustain their high proliferative rate, our approach aims to target and block this energy supply, thereby impeding cancer cell growth. 2-Deoxy-D-glucose (2-DG) is a glucose analog that lacks the oxygen atom at position 2, rendering it unable to be phosphorylated by HK2 and inhibiting glycolysis. While 2-DG has been considered a potential therapy for cancer treatment, its role in MB hasn’t been fully elucidated. In our current study, we discovered that 2-DG inhibits the progression of MB in both in vitro and orthotopic transplantation tumor models. Furthermore, analysis of the orthotopic transplantation tumors from the 2-DG treatment and control groups revealed significant up-regulation of lncRNA MEG3 and MYRIP in the 2-DG treatment group. We further demonstrated that the downstream factors of MEG3 are also regulated by 2-DG in the MB cell line. In conclusion, our results revealed that 2-DG inhibits the progression of MB and suggested a novel mechanism for its treatment. This provides evidence that 2-DG could be a potential therapeutic strategy for treating MB.
+
+# 前言
+## 背景
+髓母细胞瘤（Medulloblastoma，MB）是一种恶性的中枢神经系统肿瘤，起源于小脑的髓母细胞瘤。髓母细胞瘤是儿童和青少年最常见的原发性恶性脑肿瘤之一，但也可在成年人中发生。目前的统计显示其有两个发病高峰期，分别为1-4岁和5-9岁，约占儿童神经系统肿瘤的15-20%[@Massimino2016-ls;@Distel2003-zo]。在成年人中的发病率约为每百万人中有0.5个病例，且男性的发病率明显高于女性，比率约为1.8：1。在儿童和青少年中的发病率约为每年每百万人口中有5至6例[@Northcott2019-ah;@Ostrom2018-kv]。这意味着全球每年大约有1,500至1,800例新发的髓母细胞瘤病例。尽管对于髓母细胞瘤的流行病学研究不是很多，但是目前显示不同地区和不同种族中髓母细胞瘤的发病率没有明显的差别。根据中国的流行病学数据，髓母细胞瘤在中国儿童和青少年中的发病率约为每年每百万人口中有3.2至4.7例。在欧洲的统计显示儿童MB患者1年、3年和5年的生存率分别为81%、63%和56%。婴儿相应的生存率要低一些，而5-14岁的青少年的生存率则要高一些[@Massimino2016-ls]。髓母细胞瘤通常位于小脑后下方的中线位置，可以对周围的组织和脑脊液产生压迫和侵袭。它的发展速度较快，可能会扩散到脊髓和其他脑部结构。髓母细胞瘤的症状通常包括头痛、呕吐、平衡障碍、共济失调、步态异常、眼球运动异常、视力问题以及其他神经系统症状。
+
+目前除遗传和出生体重两个因素是已经证明与髓母细胞瘤的发生有关联外，而饮食、环境等因素在髓母细胞瘤发生中的作用还不清楚[@Northcott2019-mg]。如痣样基底细胞癌综合征（Gorlin syndrome）、家族性腺瘤性息肉病（FAP syndrome）、布朗姆综合征（Bloom syndrome）和Nijmegen断裂综合征（Nijmegen breakage syndrome）等都会增加罹患髓母细胞瘤的风险[@Taylor2002-id;@Cohen1982-rc;@Petrella1991-ma;@Distel2003-zo]。而Harder等人的研究发现出生体重与MB的发病有着明显正相关关系[@Harder2008-nq]。基于1022个MB样本的研究发现大约5.9%的MB患者会发生APC、BRCA2、PALB2、PTCH1、SUFU和TP53突变，但是这些突变在临床上并没有产生易患MB的综合征，因此这些突变在MB发生发展过程中的作用还有待进一步的研究[@Waszak2018-df;@Northcott2019-mg]。此外，有一项在英格兰的研究发现在怀孕期间母体受到病毒感染则会使患神经系统肿瘤的风险增加11倍之多[@Fear2001-kk]。另外一个统计学的研究发现在婴儿早期没有社交会使其MB的发生率提高约1.78倍（95%CI: 1.12-2.83）[@Harding2009-ks]。
+
+## 髓母细胞瘤的分类
+早期（2010年之前）根据组化在形态学上将髓母细胞瘤分为classic MB，large cell MB和anaplastic MB。随着测序技术的普及，全球多个组织的研究发现在转录组水平上可以将髓母细胞瘤分为一下四类：WNT-MB，SHH-MB，Group3-MB和Group4-MB。
+
+WNT-MB是最不常见的MB，约占所以MB的10%，在男性和女性中发病的概率大致相当，在所有年龄段都能够发生，但是高发期在10-12岁[@Kool2012-kt]。WNT-MB的一个特征是其发病周期相对于其他MB亚型非常长，因此，大部分WNT-MB患者都是死与其他疾病而非WNT-MB。在确诊时WNT-MB基本上没有发生转移，如果确诊时年龄小于16周岁，5年生存率超过95%，但是如果在成年期确诊，则5年生存率要小一些[@Remke2011-en;@Clifford2015-pi]。约85%-90%的WNT-MB患者的CTNNB1基因（编码β-catenin）在第三个外显子处发生突变，导致β-catenin不能被有效降解，致使其在细胞核内不断累积，这导致WNT信号通路的异常激活。WNT-MB的另外一个特征是大约80-85%的患者的MB细胞只有一条6号染色体，而且6号染色体缺失通常与CTNNB1同时出现。除此之外，WNT-MB细胞的基因组相对比较稳定，没有明显的大片段缺失和重复[@Northcott2012-wl]。此外，WNT-MB基因组有着比较高的单核苷酸突变（single-nucleotide variants, SNVs），平均每1800个核酸就有一个突变。最新的研究显示在WNT-MB中最常见的基因突变为DDX3X（36%）、SMARCA4（19%）、TP53（14%）、CSNK2B（14%）、PIK3CA（11%）和EPHA7（8%）[@Northcott2017-ou;@Jones2012-jg;@Pugh2012-zg;@Robinson2012-tk]。DDX3X突变可能是通过促进rhombic lip 祖细胞（rhombic lip progenitor）分裂来促使WNT-MB发生的，因为rhombic lip祖细胞被认为是WNT-MB的主要来源[@Robinson2012-ra;@Gibson2010-gu]。SMARCA4编码SWI-SNF染色质重塑复合物的一个亚基，而改复合物能够通过改变染色质的局部结构来调控基因的转录。据估计SWI-SNF复合物在大概20%人类肿瘤中发生了突变。SMARCA4基因和SWI-SNF复合物中的另外两个组分ARID1A和ARID1A2在WNT-MB中有如此高的突变率说明调控SWI-SNF介导的染色质结构调控在WNT-MB的发生和发展过成中起到了非常重要的作用。CSNK2B编码CKII（casein kinase II）的β亚基。CKII能够调控多个信号通路，如代谢通路、信号传导通路、转录以及细胞复制等信号通路。此外，CKII还能够通过磷酸化CTNNB1激活WNT信号通过，促进TCF-LEF家族基因的表达，从而促进细胞分裂[@Dominguez2009-pm;@Duncan2008-df]。PIK3CA是一个致癌基因在许多肿瘤都发生突变。其主要通过持续地激活AKT和mTOR通路来促进续细胞非正常的生长和分裂[@Vanhaesebroeck2012-py]。EPHA7编码的蛋白属于ephrin家族的络氨酸激酶家族受体，其在中枢神经系统发育过程中高表达，主要介导神经细胞的空间分布、轴突生长以及突出的产生等过程[@Saha2018-np]。但是这些突变在WNT-MB产生过程中的具体作用还有待继续探究。WNT-MB患者由于高表达WIFI和DKK1导致肿瘤附近的血脑屏障（blood-brain barrier， BBB）功能受到损坏，恰巧的是WIFI和DKK1是WNT信号通路的拮抗剂，这可能可以部分地解释为什么WNT-MB患者有着较好的预后。此外，由于WNT-MB患者血脑屏障的功能受到损坏，可以利用该现象从外周给患者使用化疗药物。
+
+SHH-MB是目前了解最多的MB亚型，绝大多数SHH-MB患者都有SHH信号通路关键基因的突变和拷贝数的变化。这些突变包括PTHC1（43%）、SUFU（10%）、SMO（9%）、GLI1或者GLI2（9%）以及MYCN（7%）。这些基因的突变导致SHH信号通路非配体依赖的，持续性地激活，这导致SHH响应基因的高表达，从而促进细胞的增值和分裂。此外，在小鼠身上的研究还证实突变这些基因会导致SHH-MB的形成[@Markant2012-cs;@Lau2012-uo;@Wu2011-ur]，说明这些基因在SHH-MB行程过程中起这重要的作用。最近的研究还发现p53和PI3K信号通路同样也在SHH-MB中起着重要的作用[@Clifford2006-tz]。SHH-MB染色体有一个特征是第九号和第十号染色体的长臂丢失，这导致位于其中的抑癌基因PTCH1和SUFU的丢失，且其编码的蛋白可以抑制SHH信号通路[@Northcott2010-io]。在大概39%的SHH-MB的病人中发现TERT（影响端粒的长度）启动子（TERT promotor mutations）区域发生突变，而在非SHH-MB亚型中只有不到5%的突变率。此外，98%成年SSH-MB患者的体细胞具有TERT突变（somatic mutation），而在婴儿和儿童中的突变率分别只有13%和21%[@Jakacki2012-ey]，但是这种年龄依赖的TERT启动子区域的突变的意义是什么目前还不清楚。相较于WNT-MB，SHH-MB亚型的表型无论是从染色体结构变异的角度还是从生存率的角度来说都都具有比较大的差异[@Kool2014-go;@Cavalli2017-ko;@Northcott2011-wc]。近期，多个研究小组利用基因表达数据和DNA甲基化数据将SHH-MB又划分成了4个亚群（SHHa、SHHβ、SHHγ和SHHδ）[@Cavalli2017-ko]。同样利用DNA甲基化和基因表达数据，另外一项研究儿童MB分为iSHH-I和iSHH-II两个亚群。iSHH-I多发生在年龄较小婴儿期，同时SUFU发生突变和2号染色体多拷贝。iSHH-II主要特征为SMO激活突变、以及染色体修饰基因KMT2D和BCOR的突变[@Robinson2018-uf]。这些分子层面的特征显示iSHH-I和iSHH-II分别类似于SHHβ和SHHγ。在年龄稍大一些的儿童和青少年SHH-MB患者中TP53基因的突变率要明显高于婴儿和儿童SHH-MB患者，同时TP53的突变还伴随着MYCN或者GLI2的高表达、细胞变大和组织增生以及染色体断裂性重组（chromothripsis）[@Rausch2012-vg]。相较于具有TP53突变的WNT-MB，具有TP53突变的SHH-MB患者通常具有较低的生存率，这可能是由于TP53在不同细胞中突变产生的影响不同导致的[@Zhukova2013-ba;@Ramaswamy2016-wx]。相较于儿童及青少年SHH-MB患者，成年SHH-MB患者通常具有较高的SNVs，同时超过80%的患者还伴有PTCH1和SMO突变[@Kool2014-vw]。由于SMO位于SHH信号通路的上游，靶向SMO的临床治疗表现出较好的治疗效果[@Petrirena2018-xn;@Lou2016-vl;@Robinson2015-mw;@Gajjar2013-vd]。
+
+高表达MYC是Group3-MB的一个重要特征，在其他MB亚型中几乎没有观察到MYC的表达升高[@Northcott2017-ou;@Northcott2012-rq]。使用转录组和蛋白质组的的数据发现Group3-MB同时还伴随着核糖体蛋白、核糖体组装蛋白、线粒体中的核糖体蛋白、以及与mRNA修饰、转录和转运的蛋白都在Group3-MB中高表达[@Archer2018-pp;@Forget2018-wu]。Group3-MB中常见的共有突变比较少，突变率大于5%的目前只发现了SMARCA4（9%）、KBTBD4（6%）、CTDNEP1（5%）和KMT2D（5%）[@Northcott2017-ou]。KBTBD4属于Kelch-BTB-BACK家族，目前对其功能了解的还比较有限，其可能在泛素-蛋白酶系统中发挥这某种功能。KBTBD4突变通常发生在Kelch功能区，可能会影响其与其他蛋白或者底物得结合。CTDNEP1属于蛋白磷酸酯酶（protein phosphatases），能够将其底物去磷酸化，其可能通过正向调控WNT信号通路参与生殖细胞的形成[@Tanaka2013-ha]。但是目前对于CTDNEP1在Group3-MB中所起的作用了解还非常的欠缺。其他在分子层面促进Group3-MB形成的因素还包括MYCN（5%）和OTX2（3%）的高表达。OTX2是一个转录调控因子，在前脑、后脑、眼睛和松果体的发育过程中起到非常重要的作用[@Beby2013-qv;@Simeone1998-sw]。目前认为OTX2基因的高表达对于维持MB细胞的干性、抑制神经细胞分化和调控细胞周期等方面发挥着重要的功能[@Boulay2017-ka;@Garancher2018-vw;@Bunt2012-xy;@Bunt2013-la]。染色体结构变异导致GFI1和GFI1B在大约15%-20%的Group3-MB患者中表达升高[@Northcott2014-eg]。GFI1和GFI1B在造血系统中高表达可以抑制造血干细胞的分化。将过表达MYC同时过表达GFI1或者GFI1B的小鼠神经干细胞接种到免疫缺陷小鼠的后脑能够促使前者向Group3-MB表型分化[@Northcott2014-eg]。在染色体层面上，Group3-MB表现出明显的非整倍性（aneuploidy），同时伴随17号染色体表现出等臂染色体（isochromosome）现象（即17号染色体由两个长臂构成，短臂丢失）、1号染色体长臂和7号染色体多拷贝、8号染色体和10号染色体长臂以及16号染色体长臂丢失等现象[@Northcott2012-wl]。通过使用不同的组学技术，近期的研究又将Group3-MB进行了更细致的划分[@Cho2011-zi;@Northcott2017-ou;@Cavalli2017-ko;@Schwalbe2017-au]。如有一项研究把Group3-MB分为两个小类，分别称为c1和c5。c1亚群表现为MYC高拷贝和高表达，同时病情较差。而c5表现为染色体非整倍性以及较好的病情。其他的研究也有将Group3-MB划分成两歌亚类或者三个亚类的，但是所有的亚型只要MYC高拷贝或者高表达的，患者的病情通常较差[@Cavalli2017-ko;@Schwalbe2017-au]。
+
+
+
+
+## 研究髓母细胞瘤的模型
+
+
+## 髓母细胞瘤的诊断方法
+
+
+## 髓母细胞瘤的治疗方法
+
+
+# 实验材料与方法
+## 实验材料
+
+
+## 实验方法
+
+
+# 实验结果
+
+
+# 讨论
+
+
+# 参考文献
+::: {#refs}
+:::
