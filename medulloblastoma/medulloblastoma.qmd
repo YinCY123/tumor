@@ -7,11 +7,10 @@ editor: source
 ---
 
 # 摘要
-髓母细胞瘤（Medulloblastoma，MB）是一种非常恶性的肿瘤，主要发生在儿童和青少年时期，其造成的死亡率大约为30%。因此，迫切地地需要找到一种治疗MB的治疗方案。鉴于肿瘤细胞具有非常旺盛的代谢速率去维持其旺盛的分裂速度。因此本研究旨在研究阻断MB的能量代谢途径后如何影响MB的分裂与生长。2-Deoxy-D-glucose（2DG）属于葡萄糖类似物，其缺失2号位上的氧原子，因此其不能够被HK2磷酸化，进而抑制了糖酵解过程。因而2DG被认为是一个潜在的治疗肿瘤的化合物，但是其对MB的影响目前还不清楚。在本研究中我们发现2DG在体内和体外都能够有效地抑制MB的生长与分裂。此外，通过二代测序发现2DG调控MB生长与分裂是部分地通过调控非编码RNA MEG3和MYRIP实现的。后续的研究证实在MB细胞系中MEG3下游信号也受到2DG的调控。因此，本研究发现了一个2DG调控MB生长与分裂的信号通路，该通路可以作为潜在的治疗MB的靶点。
+髓母细胞瘤（Medulloblastoma，MB）是一种非常恶性的中枢神经系统肿瘤，主要发生在儿童和青少年时期，其造成的死亡率大约为30%。因此，迫切地需要找到一种治疗MB的方案。鉴于肿瘤细胞需要维持一个非常高的代谢速率去支撑其旺盛的分裂速度。因此，本研究旨在研究阻断MB的能量代谢途径后如何影响其分裂与生长。2-Deoxy-D-glucose（2DG）属于葡萄糖类似物，由于其缺失2号位上的氧原子，因此不能被HK2磷酸化，进而抑制了糖酵解过程。因而，2DG被认为是一个潜在的治疗肿瘤的化合物，但是其对MB的影响目前还不清楚。在本研究中我们发现2DG在体内和体外都能够有效地抑制MB的生长与分裂。此外，通过二代测序发现2DG调控MB生长与分裂是部分地通过调控非编码RNA MEG3和MYRIP实现的。后续的研究证实在MB细胞系中MEG3下游信号同样受到2DG的调控。因此，本研究发现了一个2DG调控MB生长与分裂的信号通路，该通路可以作为潜在的治疗MB的靶点。
 
 # Abstract
 Medulloblastoma (MB), a highly malignant tumor commonly found in youngsters, unfortunately, results in a mortality rate of around thirty percent. Consequently, there is a critical need to enhance the prognosis of MB by formulating novel treatment strategies. Given that cancer cells demand a substantial energy supply to sustain their high proliferative rate, our approach aims to target and block this energy supply, thereby impeding cancer cell growth. 2-Deoxy-D-glucose (2-DG) is a glucose analog that lacks the oxygen atom at position 2, rendering it unable to be phosphorylated by HK2 and inhibiting glycolysis. While 2-DG has been considered a potential therapy for cancer treatment, its role in MB hasn’t been fully elucidated. In our current study, we discovered that 2-DG inhibits the progression of MB in both in vitro and orthotopic transplantation tumor models. Furthermore, analysis of the orthotopic transplantation tumors from the 2-DG treatment and control groups revealed significant up-regulation of lncRNA MEG3 and MYRIP in the 2-DG treatment group. We further demonstrated that the downstream factors of MEG3 are also regulated by 2-DG in the MB cell line. In conclusion, our results revealed that 2-DG inhibits the progression of MB and suggested a novel mechanism for its treatment. This provides evidence that 2-DG could be a potential therapeutic strategy for treating MB.
-
 
 # 前言
 ## 背景
@@ -61,6 +60,9 @@ MB在诊断时可呈现播散状，有时会发生在脑内，尤其易发生在
 
 
 ### 化疗
+
+
+### 免疫治疗
 
 
 # 实验材料与方法
