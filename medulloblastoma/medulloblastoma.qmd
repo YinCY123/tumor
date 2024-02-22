@@ -1,16 +1,22 @@
 ---
-title: "medulloblastoma"
+title: "2-Deoxy-D-glucose 通过非编码RNA MEG3抑制髓母细胞瘤的生长"
 format: docx
 bibliography: medulloblastoma_reference.bib
-csl: /home/yincy/git/github/styles/nature.csl
+csl: "/home/yincy/git/github/styles/chinese-gb7714-2005-numeric.csl"
 editor: source
+number-sections: true
 ---
 
-# 摘要
+# 摘要{.unnumbered}
 髓母细胞瘤（Medulloblastoma，MB）是一种非常恶性的中枢神经系统肿瘤，主要发生在儿童和青少年时期，其造成的死亡率大约为30%。因此，迫切地需要找到一种治疗MB的方案。鉴于肿瘤细胞需要维持一个非常高的代谢速率去支撑其旺盛的分裂速度。因此，本研究旨在研究阻断MB的能量代谢途径后如何影响其分裂与生长。2-Deoxy-D-glucose（2DG）属于葡萄糖类似物，由于其缺失2号位上的氧原子，因此不能被HK2磷酸化，进而抑制了糖酵解过程。因而，2DG被认为是一个潜在的治疗肿瘤的化合物，但是其对MB的影响目前还不清楚。在本研究中我们发现2DG在体内和体外都能够有效地抑制MB的生长与分裂。此外，通过二代测序发现2DG调控MB生长与分裂是部分地通过调控非编码RNA MEG3和MYRIP实现的。后续的研究证实在MB细胞系中MEG3下游信号同样受到2DG的调控。因此，本研究发现了一个2DG调控MB生长与分裂的信号通路，该通路可以作为潜在的治疗MB的靶点。
 
-# Abstract
+**关键词：**髓母细胞瘤；2-脱氧-D-葡萄糖；lncRNA MEG3；肿瘤治疗
+
+# Abstract{.unnumbered}
 Medulloblastoma (MB), a highly malignant tumor commonly found in youngsters, unfortunately, results in a mortality rate of around thirty percent. Consequently, there is a critical need to enhance the prognosis of MB by formulating novel treatment strategies. Given that cancer cells demand a substantial energy supply to sustain their high proliferative rate, our approach aims to target and block this energy supply, thereby impeding cancer cell growth. 2-Deoxy-D-glucose (2-DG) is a glucose analog that lacks the oxygen atom at position 2, rendering it unable to be phosphorylated by HK2 and inhibiting glycolysis. While 2-DG has been considered a potential therapy for cancer treatment, its role in MB hasn’t been fully elucidated. In our current study, we discovered that 2-DG inhibits the progression of MB in both in vitro and orthotopic transplantation tumor models. Furthermore, analysis of the orthotopic transplantation tumors from the 2-DG treatment and control groups revealed significant up-regulation of lncRNA MEG3 and MYRIP in the 2-DG treatment group. We further demonstrated that the downstream factors of MEG3 are also regulated by 2-DG in the MB cell line. In conclusion, our results revealed that 2-DG inhibits the progression of MB and suggested a novel mechanism for its treatment. This provides evidence that 2-DG could be a potential therapeutic strategy for treating MB.
+
+**Keywords:**Medulloblastoma; 2-Deoxy-D-glucose; lncRNA MEG3; Cancer treatment
+
 
 # 前言
 ## 背景
@@ -54,26 +60,146 @@ MB在诊断时可呈现播散状，有时会发生在脑内，尤其易发生在
 
 ## 髓母细胞瘤的治疗方法
 ### 手术切除
-手术切除是治疗MB的重要手段，理想情况下在初次确诊MB后就应该尽快使用手术全部切除，随后进行一定程度的放疗和化疗。切除的程度与预后有着较强的相关性，比如相较于全部切除（gross total resection），部分切除（subtotal resection）通常预后较差[@Albright1996-ke;@Thompson2016-tn]。如果预后较差的话还可以考虑进行二次手术。不过近期的数据并不支持上述的观点，因此，鉴于MB手术切除后出现小脑缄默症的风险很高，以及高度脆弱结构受损导致无法完全切除时，应避免过度切除覆盖脑干的部分残余肿瘤[@Thompson2016-oy;@Gajjar1996-ij;@Thompson2018-iv;@Schreiber2017-cp]。因此，手术的首要目标和当前目标是获取组织进行组织病理学分析和分子诊断，以及最大限度地安全第消灭肿瘤细胞。事实上，由于分支诊断主要用于确定肿瘤的恶性等级，因此获取组织进行分子诊断对于治疗计划和管理至关重要[@Rutkowski2018-vz;@Mack2017-sy]。
+手术切除是治疗MB的重要手段，理想情况下在初次确诊MB后就应该尽快使用手术全部切除，随后进行一定程度的放疗和化疗。根据肿瘤的位置和大小，在切除前可能需要进行脑室外分流术或第三脑室造口术以降低因卢克夏孔、马耿迪孔或西尔维乌斯导水管处液体循环阻塞而导致的颅内压。约有20%-30%的患者因脑脊液通路瘢痕形成而需要永久性脑室腹腔分流术。MB髓母细胞瘤与第四脑室、有时与脑干关系密切，因此有发病的风险，但儿科神经外科专家经常能够完全切除肿瘤，而不会造成重大的发病。除了感染和机械并发症（如液体渗漏和假性脑膜瘤）外，直接的神经外科操作还可能导致后窝缄默综合征。其特点是在切除术后48-72小时出现缄默症，并伴有严重的小脑功能障碍，如构图障碍、肌张力低下、瘫痪和情绪低落，并有可能持续数月。这可能是继发于网状物质通路的破坏。手术切除的程度最好通过术后脑磁共振成像（术后48小时内）进行评估。然而，肉眼可见的少量肿瘤低于目前扫描仪的分辨率极限可能被遗留下来，因此与神经外科医生仔细讨论并查看手术报告对于制定治疗计划非常重要。通过第二次手术将术后残留肿瘤缩小到小于或等于1.5平方厘米的患者，如果能够及时（通常在第一次手术后两周内）讨论并接受这种方法，则有资格接受标准风险方案。鉴于分子风险类别在分组中的重要作用，不完全切除的相关风险与风险生物学问题存在竞争，如果风险较低，可以接受近乎全切除（near total resection），而不是全切除（gross total resection）。切除的程度与预后有着较强的相关性，比如相较于全部切除（gross total resection），部分切除（subtotal resection）通常预后较差[@Albright1996-ke;@Thompson2016-tn]。如果预后较差的话还可以考虑进行二次手术。不过近期的数据并不支持上述的观点，因此，鉴于MB手术切除后出现小脑缄默症的风险很高，以及高度脆弱结构受损导致无法完全切除时，应避免过度切除覆盖脑干的部分残余肿瘤[@Thompson2016-oy;@Gajjar1996-ij;@Thompson2018-iv;@Schreiber2017-cp]。因此，手术的首要目标和当前目标是获取组织进行组织病理学分析和分子诊断，以及最大限度地安全第消灭肿瘤细胞。事实上，由于分支诊断主要用于确定肿瘤的恶性等级，因此获取组织进行分子诊断对于治疗计划和管理至关重要[@Rutkowski2018-vz;@Mack2017-sy]。
 
 ### 放疗
-
+放疗是使用高能射线的电离辐射作用杀死癌细胞来治疗肿瘤的方法，与手术、化疗并列为治疗肿瘤最重要的三种方法。由于MB倾向于在中枢神经系统内部转移，因此目前最成功的放疗效果都是通过照射整个中枢神经系统实现的[@Bloom1982-kc]。对于年龄稍大一些的儿童来说无论使用多大剂量的辐射照射整个中枢神经系统也并不能缓解病情。且照射整个神经系统会带来非常大的负面影响，如永久性的认知功能障碍、神经内分泌紊乱、影响生长发育、不孕不育、畸形以及诱发其他肿瘤发生等。尽管通过降低辐射剂量来避免这个负面结果的努力失败了，但是通过改变给与辐射的方式降低不必要的负面影响。3D质子束放射治疗是另外一种低剂量的治疗方式，因其较高的定向能力使得非靶向组织受到的影响非常小，避免产生其他不利影响[@St_Clair2004-ci]。早期使用质子束治疗MB的结果非常好，且没有显示出明显的毒副作用[@Vatner2018-vf;@Pulsifer2018-rz;@Yock2016-qm]。但是目前还没有直接的比较放疗与质子流治疗肿瘤的研究，因此，在选择具体的治疗方案时还需要考虑其他一些因素，如MB所处的病情等级、肿瘤的大小、有无发生转移、患者的年龄等因素来选择合适的治疗手段。
 
 ### 化疗
-
+放疗与化疗的目的非常相似，都是希望使用最低的剂量来达到控制肿瘤生长的最佳效果，同时尽量避免产生其他后遗症。目前治疗MB的化疗药物主要包括：cisplatin、carboplatin、vincristine、cyclophosphamide和lomustine。上个世纪70年代这些化疗药物被用来延长MB患者的生命周期。到90年代时这些药物被用来减缓使用23.4.0Gy/13到36.0Gy/20剂量照射整个中枢神经系统去治疗MB时所产生的后遗症[@Deutsch1996-vn;@Lin2013-rz]。在随后的几年中，这些化疗被证实是手术和放疗的重要辅助手段，并能够显著改善转移性和非转移MB患者的生存率[@Gajjar2006-dg;@Packer2006-xg]。总的来说相较于放疗前给与化疗药物，放疗后给与化疗药物能够显延长患者的生命周期[@Kortmann2000-cn;@Taylor2003-cn]。目前还有联合使用多个化疗药物去治疗MB的，但是这些基本上都是依靠经验联合使用及给药，且没有进行相应的临床实验[@Northcott2019-wy]。
 
 ### 免疫治疗
 
 
+## 2-脱氧-D-葡萄糖（2-Deoxy-D-glucose）治疗肿瘤中的机制
+### 2-脱氧-D-葡萄糖简介
+2-Deoxy-D-glucose（2DG）是一个人工合成的葡萄糖类似物，其2号位置的羟基被氢取代。早在上个世纪50年代2DG就开始被大量的用于科学及临床研究[@Kurtoglu2007-hn;@Zhang2014-rq]。通常认为2DG主要抑制糖酵解过程，但是其对其他的生物代谢过程也有着深远的影响。如剥夺细胞能量（depletion cellular energy）、增加氧化压力（oxidative stress）、干扰N-酰基糖基化过程、诱导自噬以及激活PI3K，MAPK和AMPK等信号通路。通常其所诱导的细胞凋亡是通过多种途径共同起作用的[@Bandugula2013-gn;@Yamaguchi2011-ce;@Kim2013-yk]。
+
+### 2DG诱导肿瘤凋亡的机制
+#### 抑制糖酵解
+由于2DG能够像天然的葡萄糖一样被葡萄糖转运体摄取到细胞内，所以其能够竞争性地抑制细胞摄取天然葡萄糖。进入细胞后其能够被己糖激酶磷酸化为2-Deoxy-D-glucose-6-phosphate（2DG-6-P），而2DG-6-P不能被磷酸果糖激酶进一步磷酸化成1，6二磷酸果糖，从而导致其在细胞内大量堆积。其在细胞内的堆积能够抑制上游己糖激酶和6-磷酸葡萄糖异构化过程。由于2DG能够抑制糖酵解上游最重要的两个步骤，这导致细胞内ATP减少、抑制细胞分裂，甚至造成细胞凋亡。
+
+细胞内ATP水平的降低会导致AMP/ATP的比率升高，进而激活AMPK信号通路，通过磷酸化下游靶点进而提高了分解代谢的速率[@Kim2013-ut]。另外，细胞内ATP水平的降低会导致细胞对外界诱导凋亡的信号特别敏感，如TNF（tumor necrosis factor）等信号[@Robinson2012-ue;@Wood2008-ze]。p53可以感知细胞内ATP的水平，当细胞内ATP的水平降低时，其能够通过促进氧化磷酸化过程提高细胞内ATP的水平，因而2DG处理也会影响到p53的功能[@Sinthupibulyakit2010-sw]。当激活缺氧诱导因子（Hypoxia-inducible factor，HIF）时，其能够促进葡萄糖转运体以及其他糖酵解通路中的一些酶的表达，因此其能够降低2DG的效果。此外，给与甘露糖（mannose）处理以及过表达Bcl-2都能够减弱2DG诱导凋亡的效果，但是这些处理并不能改善细胞内ATP的水平[@Zagorodna2012-jq;@Raez2013-iz]。
+
+#### 抑制抗氧化过程
+细胞内的活性氧（reactive oxygen species，ROS）能够氧化脂肪、氧化蛋白和损伤DNA等，因此其能够干扰氧化还原过程、造成基因组突变和抑制细胞分化等，而这些都是肿瘤的特征[@Scarbrough2012-jv;@Fath2011-ez]。过多的活性氧是对细胞不利的，因此增加细胞内活性氧的产量或者降低细胞内的还原过程都可以杀死肿瘤细胞[@Beneteau2012-by]。葡萄糖代谢速率的增加一方面能够促进戊糖磷酸化途径来增加NADPH的生成，还可以促进丙酮酸的生成，从而减轻细胞的氧化应激以及维持氧化还原的平衡。NADPH 是所有谷胱甘肽和硫氧还蛋白过氧化物酶途径的还原等价物，这两种酶都是主要的细胞硫醇抗氧化剂，负责活性氧和氮物种（ROS 和 RNS）的解毒、维持细胞氧化还原电位以及预防和恢复氧化损伤。丙酮酸对维持细胞内还原型谷胱甘肽水平、抑制超氧化物生成和直接清除过氧化氢至关重要[@Giammarioli2012-ty;@Fernandez-Gomez2006-og]。剥夺细胞的葡萄糖能够促进过氧化物和超氧化物的生成，从而诱导细胞凋亡，2DG模拟的葡萄糖剥夺还会使线粒体产生过氧化物[@Sinthupibulyakit2010-sw]。2DG在细胞内并不能被完全代谢掉，其在代谢过程中只能产生一分子的NADPH，而天然葡萄糖被代谢是能够产生2分子的NADPH，所以2DG处理会使细胞内NADPH和丙酮酸的水平降低，降低了细胞对活性氧的抵抗能力。然而，这种情况可以通过促进p53基因的表达来促进其他抗氧化酶的生成，比如锰超氧化物歧化酶（MnSOD）和谷胱甘肽过氧化酶1（GPx1）[@Sinthupibulyakit2010-sw]。
+
+#### 干扰N酰基糖基化过程
+蛋白质的糖基化是一个酶促反应过程，糖基化修饰对于提高蛋白质的稳定性、蛋白质的正确折叠以及细胞的粘附都有非常重要的作用[@]。N酰基糖基化主要是把糖基加到天冬氨酸和精氨酸侧链的氨基上，这个过程通常在内质网的内腔上进行（lumen）。在与蛋白质连接的寡糖组装过程中，甘露糖通过与二磷酸鸟苷（GDP）或多酚磷酸（Dol-P）发生共价反应而转化为甘露糖-GDP。作为蛋白质N-酰基糖基化的前体，甘露糖-GDP在GDP-甘露糖基转移酶的催化下一步步组装到 N-乙酰葡糖胺残基上，形成寡糖链。葡萄糖也参与了这一过程，因为它会转化为G-6-P，后者可通过磷甘露糖异构酶（PMI）进一步转化为6-磷酸甘露糖，然后代谢为甘露糖-GDP，形成蛋白质的寡糖链[@Kurtoglu2007-cs;@Qin2010-xf]。由于2DG的结构与甘露糖相似，所以其也可以干扰N酰基糖基化过程。2DG除了与甘露糖竞争甘露糖-GDP转移酶位点，2DG-GDP在细胞内的形成会导致寡糖连的前提被消耗，进一步破坏了寡糖连的形成[@]。这些异常的寡糖连在细胞内会干扰糖蛋白的形成。虽然细胞内的葡萄糖通过差向异构转变为甘露糖的方式参与到糖基化过程，但是外源的葡萄糖并不能逆转2DG的毒性，因为2DG会阻碍葡萄糖向甘露糖的转化[@Kurtoglu2007-hn]。
+
+抑制糖基化过程会导致蛋白质的折叠异常，异常折叠的蛋白在内质网中大量堆积会激活未折叠蛋白反应（unfold protein response，UPR），严重时会导致内质网功能失调。UPR激活后从两个方面减轻内质网的压力，第一个是抑制蛋白质的翻译过程，从而降低进入内质网的蛋白数量，第二个是其能够促进异常蛋白的降解。但是如果内质网的这种压力持续较长时间，会导致内质网功能受损，同时内质网特异的凋亡因子也会被激活，如C/EBP homologous protein（CHOP），也称为生长阻止和DNA损伤诱导基因153（GADD153）[@Oyadomari2004-za;@Tajiri2006-dh]。敲除CHOP细胞的内质网非常地抗凋亡，其表达量也是检测内质网所受到压力的重要指标[@Zagorodna2012-jq]。研究显示2DG处理能够促进CHOP的表达，说明干扰糖基化过程是2DG诱导细胞凋亡的一种机制[@Boutros2009-qe;@Yu2010-og]。内质网产生压力后也会诱导线粒体凋亡信号，其中就包括激活凋亡前信号蛋白Bcl-2。可以将凋亡前信号蛋白划分成多个亚类，比如Bax、Bak和BH3组，Bim和Puma组。2DG能够非常显著地激活Bax和Bak，说明激活线粒体凋亡通路在在2DG诱导细胞凋亡过程中也起到一定的作用[@Zagorodna2012-jq;@Yamaguchi2011-zt;@Ramirez-Peinado2011-hy]。此外，研究还发现降低Bim和Puma的表达量能够2DG诱导的内质网凋亡的能力[@Zagorodna2012-jq]。许多研究认为，2DG诱导的细胞凋亡是通过干扰糖基化实现的，而非阻断糖酵解过程。因为2DG处理后给与甘露糖能够避免细胞凋亡，但是不能够改变细胞内ATP的水平[@Xi2011-ph;@Zagorodna2012-jq;@Qin2010-it;@Andresen2012-ma]。
+
+#### 诱导自噬
+在正常生理状态下自噬（autophagy）是一个非常普遍的分解代谢过程，其参与调控许多生理及病理过程，如肿瘤的发生、神经退化以及衰老等[@Araya2013-ug;@Rangel2022-dg]。细胞自噬是一种细胞死亡方式，不同于细胞凋亡（apoptosis），是由于其凋亡的结构以及凋亡时募集的凋亡因子都与细胞凋亡不同[@Melendez2008-kg]。细胞自噬是细胞抵抗饥饿、缺氧、高温、辐射及荷尔蒙和生长因子剥夺的一种生存方式。在上述压力过程中细胞器以及部分细胞浆被包裹到一个有双层膜构成的自噬体里面，然后自噬体与融媒体融合导致自噬体被降解，讲解的产物为细胞提供物质与能量[@]。除了有循环利用营养物质的功能外，自噬还可以功能受损的细胞器和蛋白质。比如自噬可以通过逐步地降解由过氧化物破坏的线粒体，来避免细胞进入凋亡程序。
+
+自噬一个发生的一个重要标志就是微管结合蛋白LC3发生改变，LC3是一个可溶蛋白，在哺乳动物细胞内分布的非常广泛。在自噬过程中LC3被转移到自噬体里面，然后被磷脂酰乙醇胺修饰，形成LC3-磷脂酰乙醇胺，随后被转移到自噬体膜上[@Giammarioli2012-nw;@Tanida2008-mx]。2D处理能够显著地促进LC3-磷脂酰乙醇胺的形成，说明2DG处理促进了自噬的发生。2DG通过阻遏糖酵解降低细胞内ATP的浓度的方式激活自噬[@Giammarioli2012-ph;@Ben_Sahra2010-yk]。2DG诱导的内质网压力（ER stress）也是可能是诱导自噬发生的方式，因为有研究发现给与甘露糖处理能够减轻2DG诱导的内质网压力，同时终止自噬的发展[@Kurtoglu2007-pt;@Wu2009-tk]。
+
 # 实验材料与方法
 ## 实验材料
+### 主要仪器与设备
+
+|**仪器名称**|**品牌**|**型号**|
+|:--|:--|:--|
+|恒温水浴锅|Thermo Fisher|Thermo GP 100|
+|荧光定量PCR仪|Thermo Fisher|Thermo MiniAmp|
+|二氧化碳培养箱|Thermo Fisher|Thermo Fisher 371|
+|紫外分光光度计|||
+|移液枪|||
+|台式离心机|||
+|-80℃冰箱|||
+|-20℃冰箱|||
+|4℃冰箱|||
+|显微镜|||
+|细胞计数器|||
+|电子天平|||
+|化学发光成像仪|||
+|小动物活体成像系统|||
+
+
+### 主要试剂与耗材
+|**耗材名称**|**品牌**|**货号**|
+|:--|:--|:--|
+|1.5ml离心管|||
+|2.0ml离心管|||
+|15.0ml离心管|||
+|50.0ml离心管|||
+|2.0ml细胞冻存管|||
+|6.0cm细胞培养皿|||
+|12孔板|||
+|NC膜|Millipor|782434|
+|血球计数板|||
+|蛋白marker|||
+|蛋白酶抑制剂|||
+|蛋白酶抑制剂|||
+|逆转录试剂盒|||
+|CCK8试剂盒|||
+|D-Luciferin|||
+|太牛血清FBS|||
+|DMEM培养基|||
+|RPMI 1640培养基|||
+|DMSO|||
+|PBS缓冲液|||
+|0.25% Trypsin EDTA|||
+|2-Deoxy-D-glucose|||
+|结晶蓝|||
+|Metformin|||
+|Trizol|||
+|pLKO.1-puro&EGFP|上海逐一生物科技有限公司||
+
+
+
+### 小鼠和细胞
+|**名称**|**来源**|
+|D283|他人赠与|
+|D456|他人赠与|
+|HEK-293T|中国科学院典型培养物保藏委员会细胞库|
+|wild type C56BL/6J|上海南方模式动物科技有限公司|
+
+
+
+### 抗体
+|**名称**|**供应商**|**货号**|
+|:--|:--|:--|
+|
+
 
 
 ## 实验方法
+### 细胞培养
+1. 将Group3-MB细胞系从液氮中取出，迅速放到37℃的水浴锅中解冻。
+2. 把细胞放到6cm的细胞培养皿中，并加入4ml培养基。
+3. 浆细胞放入37℃，5%二氧化碳的细胞培养箱中培养。
+4. 每隔两天传一次代。
 
+培养基配方
+- DMEM
+- 10% FBS
+- 1% 青霉素和链霉素
+
+### 构建MEG3敲降细胞系
+
+### CCK8实验
+
+### Western Blot
+
+### 荧光定量PCR 
+
+### 颅内接种肿瘤
+
+### 细胞克隆形成实验
+
+### RNA-seq数据分析
+
+### 统计分析
 
 # 实验结果
+## Group3-MB细胞系对能量应激敏感
 
+## 2DG可以在体内和体外抑制MB的生长
+
+## 2DG通过上调非编码RNA MEG3调控MB的生长
+
+## 2DG调控MEG3下游信号通路影响MB的生长
 
 # 讨论
 
