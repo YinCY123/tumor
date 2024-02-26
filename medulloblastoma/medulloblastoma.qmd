@@ -413,17 +413,17 @@ PBST配置:\
 ## Group3-MB细胞系对能量应激敏感
 为了研究Group3-MB细胞是否对能量应激有反应，我们首先在体外剥夺Group3-MB细胞系D283和D458的葡萄糖。结果显示剥夺上述两种细胞的葡萄糖3个小时和6个小时后，细胞的形态发生了非常明显的变化(@fig-01)。CCK8实验显示细胞的增殖能力显著降低(@fig-a01)。AMPK是细胞内最主要的能量代谢调控通路，当细胞内AMP/ATP或者ADP/ATP的比率升高时AMPK会被上游的激酶磷酸化，从而激活AMPK信号通路，进而促进代谢路径，抑制合成通路，以恢复细胞内正常的ATP水平[@Herzig2018-jc]。而我们发现，相对于对照组，2-DG处理后AMPK的磷酸化水平显著升高(@fig-01)。乙酰辅酶A羧化酶（ACC1和ACC2）是脂肪合成关键的酶，当AMPK被激活时其会将乙酰辅酶A羧化酶磷酸化抑制其活性，从而阻断脂肪合成途径，减少其对ATP的消耗。本研究也发现AMPK被激活后乙酰辅酶A羧化酶的磷酸化水平也显著升高(@fig-a01)。
 
-![](figures/res-fig/fig1.tif){#fig-01 fig-align=center fig-width=100%}
+![Figure 1](figures/res-fig/fig1.tif){#fig-01 fig-align=center fig-width=100%}
 
 ## 在体外2-DG可以抑制Group3-MB细胞系的生长
 二甲双瓜（metformin）通过抑制电子传递链上的复合物I，来阻断有氧呼吸，从而使细胞内ATP的水平降低，进而激活AMPK。使用二甲双胍和2-DG处理Group3-MB细胞系D28324小时后，D283细胞的分裂能力及活性明显低于对照组(@fig-02 A)。细胞周期蛋白CCNA1和CCND1是指示细胞分裂水平的重要周期蛋白，RNA水平的结果显示二甲双胍和2-DG处理后24小时后D283的分裂能力显著降低(@fig-02 B)。同时western blot结果显示二甲双胍和2-DG处理24小时后AMPK和ACC的磷酸化水平明显升高(@fig-02 C)。说明二甲双胍和2-DG处理都导致细胞内ATP水平降低。
 
-![](figures/res-fig/fig2.tif){#fig-02 fig-align=center fig-width=100%}
+![Figure 2](figures/res-fig/fig2.tif){#fig-02 fig-align=center fig-width=100%}
 
 ## 在体内2-DG可以抑制Group3-MB肿瘤的生长
 为了探究2-DG是否能够在体内抑制Group3-MB肿瘤的生长，我们首先将D283接种到C57小鼠皮下，当肿瘤长到约100mm^3^时分别给实验组和对照组每隔两天腹腔注射一次2-DG或者PBS。注射一周后实验组和对照组肿瘤的大小没有明显变化，但是到第四周时注射2-DG组的肿瘤显著小于注射PBS组(@fig-03 A-D)。同时生存分析显示2-DG处理可以显著延长小鼠的生存周期(@fig-03 E)。
 
-![](figures/res-fig/fig3.tif){#fig-03 fig-align=center fig-width=100%}
+![Figure 3](figures/res-fig/fig3.tif){#fig-03 fig-align=center fig-width=100%}
 
 ## 2-DG处理能促进MEG3在Group3-MB肿瘤中的表达
 
