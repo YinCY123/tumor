@@ -78,6 +78,7 @@ for(i in seq_len(length(gene_list))){
             }
             
             current[[page]] <- as.matrix(current[[page]])
+            
             if(nrow(current[[page]]) < page_size){
                 flag = FALSE
             }
