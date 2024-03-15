@@ -1,0 +1,61 @@
+---
+title: "Fostamatinib抑制AN3CA细胞IC50实验方案"
+format: docx
+editor: source
+csl: /home/yincy/git/github/styles/nature.csl
+bibliography: ref.bib
+---
+
+# 简介
+福坦替尼（Fostamatinib，R788）是活性代谢产物R406的前体药物，在细胞内转化为R406。R406是SYK/FLT3 ATP结合位点的竞争性抑制剂，通过与ATP竞争结合到SYK/FLT3上从而抑制了SYK/FLT3激酶活性。但是其与SYK的亲和力约是FLT3的5倍。
+
+R406可以通过抑制SYK依赖的Fc受体抑制单核细胞、巨噬细胞、B细胞、T细胞和肥大细胞的激活。目前临床上主要用于治疗风湿性关节炎（Rheumatoid Arthritis ）和免疫性血小板减少性紫癜（Immune thrombocytopenic Purpura, ITP）。
+
+# 抑制中浓度（IC50）
+在体使用外诱导分化的肥大细胞，一项研究用7.8nM到125nM浓度的R406研究其抑制肥大细胞激活的效果[@Braselmann2006-tk]。发现其对adenosine A3 receptor的IC50为0.081$\mu$M，adenosine transporter的IC50为1.84$\mu$M，monoamine transporter的IC50为2.74$\mu$M。
+
+在另外一项使用R406诱导leukemias细胞凋亡实验中，研究者使用的浓度范围是0.16$\mu$M - 10$\mu$M[@Suljagic2010-pj]。
+
+
+# 抑制时间
+这篇文章[@Suljagic2010-pj]就是研究R406诱导leukemias细胞凋亡的效果，其选择了三个时间点观察，分别为24小时、48小时和72小时。这篇文章使用了多个leukemias细胞系，但是使用10$\mu$M抑制72小时后效果最好一组的细胞存活率依然还有大约50%（如下图 @fig-01）。
+
+研究R406对SYK下游蛋白磷酸化情况的处理时间基本在5到30分钟之间。
+
+![**R406诱导lekemias细胞凋亡的效果**。](2024-03-14_08-45.png){#fig-01}
+
+# 检测方法
+使用CCK8检测，加入CCK8试剂后二氧化碳培养箱中继续培养2小时，然后使用酶标仪测OD450, 与对照相比OD450下降一半时的浓度为抑制中浓度。
+
+
+# 实验安排
+- R788浓度梯度（$\mu$M）：0， 0.01， 0.1， 1.0， 10， 100
+- R788处理时间：24小时。
+- 每个样三个副孔，总共：6 x 3 x 3 = 54个孔。
+- 种到96孔板，每孔种大约1000个细胞。
+
+
+
+# 参考文献
+
+:::{#refs}
+:::
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -81,8 +81,9 @@ for(i in seq_len(length(gene_list))){
             
             if(nrow(current[[page]]) < page_size){
                 flag = FALSE
+            }else{
+              page = page + 1
             }
-            page = page + 1
         }
         
         project <- do.call(rbind, current)
