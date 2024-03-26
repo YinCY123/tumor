@@ -1,0 +1,62 @@
+---
+title: "01_data_download"
+author: "YinCY"
+format: html
+---
+
+```{r}
+#| message: false
+#| warning: false
+
+library(GEOquery)
+library(DropletUtils)
+library(cellrangerRkit)
+
+getGEOSuppFiles(GEO = "GSE202051", 
+                baseDir = "../../data/partime/cai/data/")
+
+getGEOSuppFiles(GEO = "GSE199102", 
+                baseDir = "../../data/partime/cai/data/")
+```
+
+
+```{r}
+h5 <- loomR::connect("/home/yincy/git/data/partime/cai/data/GSE202051/GSE202051_totaldata-final-toshare.h5ad", 
+                     mode = "r", 
+                     skip.validate = TRUE)
+```
+
+
+```{python}
+import anndata as ad
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

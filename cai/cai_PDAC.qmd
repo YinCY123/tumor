@@ -18,92 +18,15 @@ library(DropletUtils)
 ```
 
 
-```{r}
-mtx <- fread("exprMatrix.tsv.gz", 
-             sep = "\t", 
-             header = TRUE) %>% as.data.frame()
-mtx %>% dim
-locs <- regexpr("\\|", mtx$gene)
-locs %>% head
-mtx$gene <- substr(mtx$gene, 1, locs - 1)
-source("/home/yincy/git/mouse-kidney/functions/idconv.R")
-mtx$ensembl <- idconv(mtx$gene, "SYMBOL", "GENEID", db = "human")
-mtx <- mtx %>% dplyr::relocate(ensembl, .before = gene)
-mtx$ensembl %>% is.na %>% table
-mtx <- mtx %>% dplyr::filter(!is.na(ensembl))
-mtx$ensembl %>% duplicated %>% table
-rownames(mtx) <- mtx$ensembl
-
-gene_info <- mtx[, 1:2]
-mtx <- mtx[, -c(1, 2)]
-mtx <- as(as.matrix(mtx), "CsparseMatrix")
-mtx[1:10, 1:10]
-
-sample_info <- read.table("meta.tsv", sep = "\t", header = TRUE)
-sample_info$Cell %>% duplicated() %>% table
-rownames(sample_info) <- sample_info$Cell
-sample_info %>% head
-
-sample_info$patient_ID %>% table
-```
-
-```{r}
-sces <- SingleCellExperiment(assays = list(counts = mtx), 
-                             rowData = gene_info, 
-                             colData = sample_info)
-
-sces
-sces %>% colData
-sces %>% rowData
-saveRDS(sces, "sces.rds")
-saveRDS(sces[, sces$Cluster == "Schwann"], 
-        "normal_schwann.rds")
-```
-
-
-```{r}
-library(rhdf5)
-library(magrittr)
-
-h5 <- H5Fopen("GSE202051_totaldata-final-toshare.h5ad")
-h5
-```
 
 
 
 
 
 
-# prepare for cellphonedb
-```{r}
-library(anndataR)
-library(SeuratDisk)
-
-LoadH5Seurat("GSE202051_totaldata-final-toshare.h5seurat")
-sce <- read_h5ad("GSE202051_totaldata-final-toshare.h5ad", 
-                 to = "HDF5AnnData")
-```
 
 
 
-# CellPhoneDB
-```{python}
-#| eval: false
-from cellphonedb.utils import db_utils
-from cellphonedb.utils import db_releases_utils
-from IPython.display import HTML, display
-
-display(HTML(db_releases_utils.get_remote_database_versions_html()['db_releases_html_table']))
-db_utils.download_database("/home/yincy/git/data/cellphonedb/v4.1.0/", cpdb_version = "v4.1.0")
-```
-
-```{python}
-# analysis
-from cellphonedb.src.core.methods  import cpdb_analysis_method
-?cpdb_analysis_method
-
-
-```
 
 
 
